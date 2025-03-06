@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
+import 'package:temer/services/api_service.dart';
 
 class NewPipelineScreen extends StatefulWidget {
   const NewPipelineScreen({super.key});
@@ -80,12 +81,20 @@ class _NewPipelineScreenState extends State<NewPipelineScreen> {
                               color: Color(0xff84A441),
                               size: 30,
                             ),
-                            onPressed: () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => const LoginScreen()),
-                              );
+                            onPressed: () async {
+                              try {
+                                await ApiService().logout();
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          const LoginScreen()),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Logout failed: $e")),
+                                );
+                              }
                             },
                           ),
                         ],
@@ -182,7 +191,8 @@ class _NewPipelineScreenState extends State<NewPipelineScreen> {
           border: InputBorder.none,
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,
@@ -209,7 +219,8 @@ class _NewPipelineScreenState extends State<NewPipelineScreen> {
           border: InputBorder.none,
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,

@@ -2,19 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/services/api_service.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class PropertiesScreen extends StatefulWidget {
   const PropertiesScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _PropertiesScreenState createState() => _PropertiesScreenState();
 }
 
 class _PropertiesScreenState extends State<PropertiesScreen> {
   List<Map<String, dynamic>> properties = [];
+  List<Map<String, dynamic>> filteredProperties = [];
   bool isLoading = true;
   String errorMessage = '';
+  String searchQuery = '';
+  String selectedFilter = '';
+  String selectedGroupBy = '';
 
   @override
   void initState() {
@@ -28,6 +32,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
           await ApiService().fetchPropertiesData();
       setState(() {
         properties = fetchedData;
+        filteredProperties = properties;
         isLoading = false;
       });
     } catch (e) {
@@ -38,14 +43,50 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     }
   }
 
+  void filterProperties() {
+    setState(() {
+      filteredProperties = properties.where((property) {
+        bool matchesSearch = property.values
+            .toString()
+            .toLowerCase()
+            .contains(searchQuery.toLowerCase());
+
+        bool matchesFilter = selectedFilter.isEmpty ||
+            property['state'] == selectedFilter ||
+            property['bedroom'].toString() == selectedFilter;
+
+        return matchesSearch && matchesFilter;
+      }).toList();
+    });
+  }
+
+  void groupByProperty(String key) {
+    setState(() {
+      selectedGroupBy = key;
+    });
+  }
+
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'available':
-        return const Color(0xff617C28);
+        return const Color(0xff84A441).withOpacity(0.34);
       case 'reserved':
-        return const Color(0xffE29609);
+        return const Color(0xffE29609).withOpacity(0.28);
       case 'sold':
-        return const Color(0xffFF3131);
+        return const Color(0xffFF0000).withOpacity(0.69);
+      case 'pending_sales':
+        return const Color(0xffE29609).withOpacity(0.28);
+      default:
+        return Colors.black;
+    }
+  }
+
+  Color _getPropertyTypeColor(String propertyType) {
+    switch (propertyType.toLowerCase()) {
+      case 'commercial':
+        return const Color(0xff000000);
+      case 'residential':
+        return const Color(0xffA15E1A);
       default:
         return Colors.black;
     }
@@ -103,14 +144,24 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                           },
                         ),
                         IconButton(
-                          icon: const Icon(Icons.logout,
-                              color: Color(0xff84A441), size: 30),
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const LoginScreen()),
-                            );
+                          icon: const Icon(
+                            Icons.logout,
+                            color: Color(0xff84A441),
+                            size: 30,
+                          ),
+                          onPressed: () async {
+                            try {
+                              await ApiService().logout();
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => const LoginScreen()),
+                              );
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Logout failed: $e")),
+                              );
+                            }
                           },
                         ),
                       ],
@@ -136,7 +187,6 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                 const SizedBox(height: 10),
 
                 // Property List
-
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -144,12 +194,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                           ? Center(
                               child: Text(errorMessage,
                                   style: const TextStyle(color: Colors.red)))
-                          : ListView.builder(
-                              itemCount: properties.length,
-                              itemBuilder: (context, index) {
-                                return _buildPropertyCard(properties[index]);
-                              },
-                            ),
+                          : _buildGroupedView(),
                 ),
 
                 const Padding(
@@ -190,11 +235,17 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                   ),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Expanded(
                     child: TextField(
-                      decoration: InputDecoration(
+                      onChanged: (value) {
+                        setState(() {
+                          searchQuery = value;
+                          filterProperties();
+                        });
+                      },
+                      decoration: const InputDecoration(
                         hintText: "Search",
                         border: InputBorder.none,
                       ),
@@ -205,114 +256,264 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
               ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.filter_alt, color: Color(0xff84A441)),
-            onPressed: () {},
+          PopupMenuButton<String>(
+            icon: const Icon(
+              Icons.filter_alt,
+              color: Color(0xFF84A441),
+            ),
+            onSelected: (value) {
+              setState(() {
+                selectedFilter = value;
+                filterProperties();
+              });
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: "", child: Text("All")),
+              const PopupMenuItem(value: "available", child: Text("Available")),
+              const PopupMenuItem(value: "reserved", child: Text("Reserved")),
+              const PopupMenuItem(value: "sold", child: Text("Sold")),
+              const PopupMenuItem(value: "1", child: Text("1 Bedroom")),
+              const PopupMenuItem(value: "2", child: Text("2 Bedroom")),
+              const PopupMenuItem(value: "3", child: Text("3 Bedroom")),
+              const PopupMenuItem(value: "4", child: Text("4 Bedroom")),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.layers, color: Color(0xff84A441)),
-            onPressed: () {},
+          PopupMenuButton<String>(
+            icon: const Icon(
+              Icons.layers,
+              color: Color(0xFF84A441),
+            ),
+            onSelected: (value) {
+              groupByProperty(value);
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: "site", child: Text("Group by Site")),
+              const PopupMenuItem(value: "state", child: Text("Group by Status")),
+              const PopupMenuItem(value: "property_type", child: Text("Group by Type")),
+            ],
           ),
         ],
       ),
     );
   }
+
+  Widget _buildGroupedView() {
+  if (selectedGroupBy.isEmpty) {
+    return ListView.builder(
+      itemCount: filteredProperties.length,
+      itemBuilder: (context, index) {
+        return _buildPropertyCard(filteredProperties[index]);
+      },
+    );
+  } else {
+    Map<String, List<Map<String, dynamic>>> groupedData = {};
+    
+    for (var property in filteredProperties) {
+      String key = property[selectedGroupBy]?.toString() ?? "Unknown";
+      groupedData.putIfAbsent(key, () => []).add(property);
+    }
+
+    return ListView(
+      children: groupedData.entries.map((entry) {
+        String groupName = entry.key;
+        List<Map<String, dynamic>> properties = entry.value;
+        int totalProperties = properties.length;
+
+        return _buildGroupCard(groupName, totalProperties, properties, groupedData: groupedData);
+      }).toList(),
+    );
+  }
+}
+
+
+Map<String, bool> expandedGroups = {};
+
+Widget _buildGroupCard(String group, int totalProperties, List<Map<String, dynamic>> properties, {required Map<String, List<Map<String, dynamic>>> groupedData}) {
+  Color iconColor = _getStatusColor(group); // Get color dynamically based on group type
+  IconData iconData = selectedGroupBy == "status" ? Icons.business : Icons.apartment;
+
+  return Card(
+    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+    ),
+    elevation: 2,
+    child: InkWell(
+      onTap: () {
+        setState(() {
+          filteredProperties = groupedData[group]!;
+          selectedGroupBy = '';
+        });
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        height: 115,
+        width: 346,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(iconData, color: iconColor.withOpacity(1), size: 40),
+            const SizedBox(width: 12),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  group,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: iconColor.withOpacity(0.5),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Total Properties - $totalProperties",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 
   Widget _buildPropertyCard(Map<String, dynamic> property) {
     return Container(
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.symmetric(vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xffD9D9D9).withOpacity(0.5),
-        border: Border.all(color: Colors.green.shade300),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 5,
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 4,
             spreadRadius: 1,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildPropertyDetail("Name", property["name"]),
+          // Property Name and Type
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                  child:
-                      _buildPropertyDetail("Type", property["property_type"])),
-              Expanded(
-                  child: _buildPropertyDetail("Status", property["state"],
-                      statusColor: _getStatusColor(property["state"]))),
+                child: Text(
+                  property["name"],
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  property["property_type"],
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _getPropertyTypeColor(property["property_type"]),
+                  ),
+                ),
+              ),
             ],
           ),
+          const SizedBox(height: 5),
           Row(
             children: [
-              Expanded(
-                  child: _buildPropertyDetail(
-                      "Nt. Area", property["net_area"].toString())),
-              if (property["bedroom"] != null)
-                Expanded(
-                    child: _buildPropertyDetail(
-                        "Bedrooms", property["bedroom"].toString())),
+              _buildPropertyDetail("Gr. Area", property["gross_area"].toString()),
+              const SizedBox(width: 20),
+              _buildPropertyDetail("Nt. Area", property["net_area"].toString()),
+              const SizedBox(width: 20),
+              Row(
+                children: [
+                  const Icon(FontAwesomeIcons.bed, size: 14, color: Colors.black),
+                  const SizedBox(width: 4),
+                  Text(property["bedroom"].toString(),
+                      style: const TextStyle(fontSize: 14, color: Colors.black)),
+                ],
+              ),
+              const SizedBox(width: 20),
+              Row(
+                children: [
+                  const Icon(FontAwesomeIcons.bath, size: 14, color: Colors.black),
+                  const SizedBox(width: 4),
+                  Text(property["bathroom"].toString(),
+                      style: const TextStyle(fontSize: 14, color: Colors.black)),
+                ],
+              ),
             ],
           ),
+          const SizedBox(height: 8),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                  child: _buildPropertyDetail(
-                      "Gr. Area", property["gross_area"].toString())),
-              if (property["end_date"] != null)
-                Expanded(
-                    child:
-                        _buildPropertyDetail("End Date", property["end_date"])),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getStatusColor(property["state"]),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Text(
+                  property["state"],
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+              if (property["reservation_end_date"] != null) ...[
+                const SizedBox(width: 20),
+                Text(
+                  "Res. End Date: ${property["reservation_end_date"]}",
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87),
+                ),
+              ],
             ],
           ),
-          _buildPropertyDetail(
-              "Reservation", property["reservation_end_date"].toString()),
         ],
       ),
     );
   }
 
-  Widget _buildPropertyDetail(String label, String value,
-      {Color? statusColor}) {
-    return Container(
-      color: const Color(0xffD9D9D9).withOpacity(0.5),
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Text(
-            "$label: ",
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+  Widget _buildPropertyDetail(String label, String value) {
+    return Row(
+      children: [
+        Text(
+          "$label ",
+          style: const TextStyle(
+            fontSize: 13,
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
           ),
-          Text(
-            value,
-            style: TextStyle(color: statusColor ?? Colors.black, fontSize: 13),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
-
-  // Widget _buildPropertyDetail(String label, String value,
-  //     {Color? statusColor}) {
-  //   return Container(
-  //     color: const Color(0xffD9D9D9).withOpacity(0.5),
-  //     padding: const EdgeInsets.symmetric(vertical: 2),
-  //     child: Row(
-  //       children: [
-  //         Text(
-  //           "$label: ",
-  //           style: const TextStyle(fontWeight: FontWeight.bold),
-  //         ),
-  //         Text(
-  //           value,
-  //           style: TextStyle(color: statusColor ?? Colors.black),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 }

@@ -244,26 +244,26 @@
 //     );
 //   }
 
-  // Widget _tableHeaderText(String text) {
-  //   return Expanded(
-  //     child: Text(
-  //       text,
-  //       textAlign: TextAlign.center,
-  //       style:
-  //           const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-  //     ),
-  //   );
-  // }
+// Widget _tableHeaderText(String text) {
+//   return Expanded(
+//     child: Text(
+//       text,
+//       textAlign: TextAlign.center,
+//       style:
+//           const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+//     ),
+//   );
+// }
 
-  // Widget _tableRowText(String text) {
-  //   return Expanded(
-  //     child: Text(
-  //       text,
-  //       textAlign: TextAlign.center,
-  //       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-  //     ),
-  //   );
-  // }
+// Widget _tableRowText(String text) {
+//   return Expanded(
+//     child: Text(
+//       text,
+//       textAlign: TextAlign.center,
+//       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+//     ),
+//   );
+// }
 // }
 
 import 'package:flutter/material.dart';
@@ -363,12 +363,19 @@ class _PipelineScreenState extends State<PipelineScreen> {
                             color: Color(0xff84A441),
                             size: 30,
                           ),
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const LoginScreen()),
-                            );
+                          onPressed: () async {
+                            try {
+                              await ApiService().logout();
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => const LoginScreen()),
+                              );
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Logout failed: $e")),
+                              );
+                            }
                           },
                         ),
                       ],
@@ -475,7 +482,10 @@ class _PipelineScreenState extends State<PipelineScreen> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => PipelineDetailScreen(pipelineId: data[index]["id"].toString() ),
+                                        builder: (context) =>
+                                            PipelineDetailScreen(
+                                                pipelineId: data[index]["id"]
+                                                    .toString()),
                                       ),
                                     );
                                   },
@@ -494,9 +504,13 @@ class _PipelineScreenState extends State<PipelineScreen> {
                                       mainAxisAlignment:
                                           MainAxisAlignment.spaceBetween,
                                       children: [
-                                        _tableRowText(data[index]["name"] ?? "N/A"),
-                                        _tableRowText(data[index]["customer"] ?? "N/A"),
-                                        _tableRowText(data[index]["stage"]?["name"] ?? "N/A"),
+                                        _tableRowText(
+                                            data[index]["name"] ?? "N/A"),
+                                        _tableRowText(
+                                            data[index]["customer"] ?? "N/A"),
+                                        _tableRowText(data[index]["stage"]
+                                                ?["name"] ??
+                                            "N/A"),
                                       ],
                                     ),
                                   ),
@@ -512,14 +526,13 @@ class _PipelineScreenState extends State<PipelineScreen> {
     );
   }
 
-  
   Widget _tableHeaderText(String text) {
     return Expanded(
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style:
-            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
       ),
     );
   }

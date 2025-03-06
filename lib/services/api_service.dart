@@ -58,6 +58,25 @@ class ApiService {
 
   Future<void> logout() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    if (sessionId != null) {
+      final url = Uri.parse("$baseUrl/web/session/destroy");
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": "session_id=$sessionId",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint("Session successfully destroyed.");
+      } else {
+        debugPrint("Failed to destroy session: ${response.statusCode}");
+      }
+    }
+
     await prefs.clear();
   }
 
@@ -137,6 +156,66 @@ class ApiService {
     } else {
       throw Exception(
           "Failed to load pipeline details: ${response.statusCode}, Response: ${response.body}");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchSitesData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/lookup?name=site");
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return compute(parseJson, response.body);
+    } else {
+      throw Exception("Failed to load site data: ${response.statusCode}");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchCountryData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/lookup?name=country");
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return compute(parseJson, response.body);
+    } else {
+      throw Exception("Failed to load country data: ${response.statusCode}");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchSourceData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/lookup?name=source");
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return compute(parseJson, response.body);
+    } else {
+      throw Exception("Failed to load source data: ${response.statusCode}");
     }
   }
 }

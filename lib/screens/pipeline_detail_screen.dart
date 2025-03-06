@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/services/api_service.dart';
+// ignore: depend_on_referenced_packages
+import 'package:intl_phone_field/intl_phone_field.dart';
 
 class PipelineDetailScreen extends StatefulWidget {
   final String pipelineId;
@@ -134,13 +136,23 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                         color: Color(0xff84A441),
                                         size: 30,
                                       ),
-                                      onPressed: () {
-                                        Navigator.pushReplacement(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const LoginScreen()),
-                                        );
+                                      onPressed: () async {
+                                        try {
+                                          await ApiService().logout();
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const LoginScreen()),
+                                          );
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            SnackBar(
+                                                content:
+                                                    Text("Logout failed: $e")),
+                                          );
+                                        }
                                       },
                                     ),
                                   ],
@@ -191,20 +203,21 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                             // Phone Number Section
                             Row(
                               children: [
-                                DropdownButton<String>(
-                                  value: phoneCode,
-                                  items: ['+251', '+1', '+44', '+91']
-                                      .map((code) => DropdownMenuItem(
-                                          value: code, child: Text(code)))
-                                      .toList(),
-                                  onChanged: (value) =>
-                                      setState(() => phoneCode = value!),
-                                ),
                                 Expanded(
-                                  child: TextField(
+                                  child: IntlPhoneField(
                                     decoration: const InputDecoration(
-                                        labelText: "Phone Number"),
-                                    onChanged: (val) => phoneNumber = val,
+                                      labelText: 'Phone Number',
+                                      border: OutlineInputBorder(
+                                        borderSide: BorderSide(),
+                                      ),
+                                    ),
+                                    initialCountryCode: 'ET',
+                                    onChanged: (phone) {
+                                      setState(() {
+                                        phoneCode = '+${phone.countryCode}';
+                                        phoneNumber = phone.number;
+                                      });
+                                    },
                                   ),
                                 ),
                                 IconButton(

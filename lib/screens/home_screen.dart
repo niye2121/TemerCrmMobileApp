@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:temer/screens/login_screen.dart';
 import 'package:temer/screens/properties_screen.dart';
+import 'package:temer/services/api_service.dart';
 import 'pipeline_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -28,12 +30,38 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _handleLogout(BuildContext context) async {
+    try {
+      await ApiService().logout();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Logout failed: $e")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     List<Map<String, dynamic>> gridItems = [
-      {"icon": Icons.account_circle, "label": "My Pipeline", "screen": const PipelineScreen()},
-      {"icon": Icons.apartment, "label": "Properties", "screen": const PropertiesScreen()},
-      {"icon": Icons.insert_drive_file, "label": "Reservations", "screen": null},
+      {
+        "icon": Icons.account_circle,
+        "label": "My Pipeline",
+        "screen": const PipelineScreen()
+      },
+      {
+        "icon": Icons.apartment,
+        "label": "Properties",
+        "screen": const PropertiesScreen()
+      },
+      {
+        "icon": Icons.insert_drive_file,
+        "label": "Reservations",
+        "screen": null
+      },
       {"icon": Icons.checklist_sharp, "label": "My Activities", "screen": null},
       {"icon": Icons.notifications, "label": "Updates", "screen": null},
     ];
@@ -68,19 +96,29 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           const Text(
                             "Welcome Back!",
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87),
                           ),
                           Text(
                             username,
-                            style: const TextStyle(fontSize: 16, color: Colors.black54, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                     ),
-                    const Positioned(
+                    Positioned(
                       top: 60,
                       right: 16,
-                      child: Icon(Icons.logout, color: Color(0xff84A441), size: 30),
+                      child: GestureDetector(
+                        onTap: () => _handleLogout(context),
+                        child: const Icon(Icons.logout,
+                            color: Color(0xff84A441), size: 30),
+                      ),
                     ),
                   ],
                 ),
@@ -90,7 +128,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: GridView.builder(
                     padding: const EdgeInsets.only(top: 20),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
@@ -124,7 +163,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildGridItem(IconData icon, String label, Widget? screen, int index) {
+  Widget _buildGridItem(
+      IconData icon, String label, Widget? screen, int index) {
     bool isSelected = selectedIndex == index;
 
     return GestureDetector(
@@ -133,7 +173,8 @@ class _HomeScreenState extends State<HomeScreen> {
           selectedIndex = index;
         });
         if (screen != null) {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
+          Navigator.push(
+              context, MaterialPageRoute(builder: (context) => screen));
         }
       },
       child: AnimatedContainer(
@@ -141,7 +182,9 @@ class _HomeScreenState extends State<HomeScreen> {
         width: 171,
         height: 173,
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xff84A441) : const Color(0xff84A441).withOpacity(0.29),
+          color: isSelected
+              ? const Color(0xff84A441)
+              : const Color(0xff84A441).withOpacity(0.29),
           borderRadius: BorderRadius.circular(12),
           border: isSelected ? Border.all(color: Colors.white, width: 4) : null,
           boxShadow: isSelected
@@ -157,7 +200,9 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 60, color: isSelected ? Colors.white : const Color(0xff84A441)),
+            Icon(icon,
+                size: 60,
+                color: isSelected ? Colors.white : const Color(0xff84A441)),
             const SizedBox(height: 10),
             Text(
               label,
