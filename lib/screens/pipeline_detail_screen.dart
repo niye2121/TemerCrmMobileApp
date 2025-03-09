@@ -20,11 +20,12 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
 
   List<String> phoneNumbers = [];
   String selectedSource = 'Facebook';
-  List<String> sources = ['Facebook', 'LinkedIn', 'Google', 'Twitter'];
+  List<String> sources = [];
+  List<String> siteNames = [];
 
   String stage = "";
   int reservations = 0;
-  String phoneCode = '+251';
+  String phoneCode = '';
   String phoneNumber = '';
 
   bool isLoading = true;
@@ -35,12 +36,22 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     super.initState();
     nameController = TextEditingController();
     fetchPipelineDetail();
+    fetchSources();
   }
 
   @override
   void dispose() {
     nameController.dispose();
     super.dispose();
+  }
+
+  void fetchSources() async {
+    List<Map<String, dynamic>> data = await ApiService().fetchSourceData();
+
+    // Assuming the source name is stored under a key like "name"
+    setState(() {
+      sources = data.map((item) => item['name'].toString()).toList();
+    });
   }
 
   Future<void> fetchPipelineDetail() async {
@@ -52,15 +63,26 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
       setState(() {
         nameController.text = data['name'] ?? '';
         stage = data['stage']?['name'] ?? "N/A";
-        reservations = data['reservations'] ?? 0;
+        reservations = data['reservation_count'] ?? 0;
+
         phoneNumbers = (data['phone'] as List?)
-                ?.map((p) => p['phone'] as String)
+                ?.map((p) => p['phone'].toString())
                 .toList() ??
             [];
 
-        selectedSource = sources.contains(data['source_id'])
-            ? data['source_id']
-            : 'Facebook';
+        siteNames = (data['site_ids'] as List?)
+                ?.map((site) => site['name'].toString())
+                .toList() ??
+            [];
+
+        // Ensure `data['source_id']` is in `sources`
+        if (sources.contains(data['source_id'])) {
+          selectedSource = data['source_id'];
+        } else if (sources.isNotEmpty) {
+          selectedSource = sources.first; // Default to first valid source
+        } else {
+          selectedSource = ''; // Empty if no sources available
+        }
 
         isLoading = false;
       });
@@ -159,117 +181,488 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 80),
-                            Text("Stage: $stage",
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold)),
-                            Text("Reservations: $reservations",
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 10),
-
-                            // Action Buttons
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                _actionButton(
-                                    "View Activities", Colors.green, () {}),
-                                _actionButton(
-                                    "View Reservations", Colors.green, () {}),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                _actionButton(
-                                    "Add Activities", Colors.green, () {}),
-                                _actionButton(
-                                    "Add Reservation", Colors.green, () {}),
-                                _actionButton(
-                                    "Mark as Lost", Colors.brown, () {}),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-
-                            // Name Field
-                            TextField(
-                              decoration:
-                                  const InputDecoration(labelText: "Name"),
-                              controller: nameController,
-                            ),
-                            const SizedBox(height: 10),
-
-                            // Phone Number Section
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: IntlPhoneField(
-                                    decoration: const InputDecoration(
-                                      labelText: 'Phone Number',
-                                      border: OutlineInputBorder(
-                                        borderSide: BorderSide(),
+                            const SizedBox(height: 60),
+                            SingleChildScrollView(
+                              child: Column(
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        "Stage: $stage",
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          shadows: [
+                                            Shadow(
+                                              offset: Offset(1.0, 1.0),
+                                              blurRadius: 2.0,
+                                              color: Colors.grey,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Text(
+                                        "Reservations: $reservations",
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          shadows: [
+                                            Shadow(
+                                              offset: Offset(1.0, 1.0),
+                                              blurRadius: 2.0,
+                                              color: Colors.grey,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      SizedBox(
+                                        width: 134,
+                                        height: 64,
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                const Color(0xff84A441),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(7.33),
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            shadowColor: Colors.black,
+                                            elevation: 5,
+                                          ),
+                                          onPressed: () {},
+                                          child: const Center(
+                                            child: Text(
+                                              "View Activities",
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 144,
+                                        height: 64,
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                const Color(0xff84A441),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(7.33),
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            shadowColor: Colors.black,
+                                            elevation: 5,
+                                          ),
+                                          onPressed: () {},
+                                          child: const Center(
+                                            child: Text(
+                                              "View Reservations",
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      Expanded(
+                                        child: SizedBox(
+                                          height: 58,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xff84A441),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(7.33),
+                                              ),
+                                              shadowColor: Colors.black,
+                                              padding: EdgeInsets.zero,
+                                              elevation: 5,
+                                            ),
+                                            onPressed: () {},
+                                            child: const Center(
+                                              child: Text(
+                                                "Add\nActivities",
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: SizedBox(
+                                          height: 58,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xff84A441),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(7.33),
+                                              ),
+                                              shadowColor: Colors.black,
+                                              padding: EdgeInsets.zero,
+                                              elevation: 5,
+                                            ),
+                                            onPressed: () {},
+                                            child: const Center(
+                                              child: Text(
+                                                "Add\nReservation",
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: SizedBox(
+                                          height: 58,
+                                          child: ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  const Color(0xffA47341),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(7.33),
+                                              ),
+                                              shadowColor: Colors.black,
+                                              padding: EdgeInsets.zero,
+                                              elevation: 5,
+                                            ),
+                                            onPressed: () {},
+                                            child: const Center(
+                                              child: Text(
+                                                "Mark\nas Lost",
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 25),
+                                  SizedBox(
+                                    width: 293,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.3),
+                                            spreadRadius: 2,
+                                            blurRadius: 5,
+                                            offset: const Offset(2, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: TextField(
+                                        controller: nameController,
+                                        decoration: const InputDecoration(
+                                          border: InputBorder.none,
+                                          contentPadding: EdgeInsets.symmetric(
+                                              vertical: 15, horizontal: 10),
+                                        ),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
-                                    initialCountryCode: 'ET',
-                                    onChanged: (phone) {
-                                      setState(() {
-                                        phoneCode = '+${phone.countryCode}';
-                                        phoneNumber = phone.number;
-                                      });
-                                    },
                                   ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.add_circle,
-                                      color: Colors.green),
-                                  onPressed: () {
-                                    if (phoneNumber.isNotEmpty) {
-                                      setState(() {
-                                        phoneNumbers
-                                            .add('$phoneCode$phoneNumber');
-                                        phoneNumber = '';
-                                      });
-                                    }
-                                  },
-                                ),
-                              ],
-                            ),
+                                  const SizedBox(height: 10),
 
-                            // Display Phone Numbers
-                            Wrap(
-                              spacing: 8.0,
-                              children: phoneNumbers.map((number) {
-                                return Chip(
-                                  label: Text(number),
-                                  onDeleted: () => setState(
-                                      () => phoneNumbers.remove(number)),
-                                );
-                              }).toList(),
-                            ),
-                            const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: 293,
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          flex: 2,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.3),
+                                                  spreadRadius: 2,
+                                                  blurRadius: 5,
+                                                  offset: const Offset(2, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: TextField(
+                                              decoration: const InputDecoration(
+                                                border: InputBorder.none,
+                                                contentPadding:
+                                                    EdgeInsets.symmetric(
+                                                        vertical: 15,
+                                                        horizontal: 10),
+                                                hintText: 'Country Code',
+                                              ),
+                                              controller: TextEditingController(
+                                                  text: phoneCode),
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  phoneCode = value;
+                                                });
+                                              },
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          flex: 5,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.3),
+                                                  spreadRadius: 2,
+                                                  blurRadius: 5,
+                                                  offset: const Offset(2, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: TextField(
+                                              decoration: const InputDecoration(
+                                                border: InputBorder.none,
+                                                contentPadding:
+                                                    EdgeInsets.symmetric(
+                                                        vertical: 15,
+                                                        horizontal: 10),
+                                                hintText: 'Phone Number',
+                                              ),
+                                              controller: TextEditingController(
+                                                  text: phoneNumber),
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  phoneNumber = value;
+                                                });
+                                              },
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
 
-                            // Source Dropdown
-                            DropdownButtonFormField(
-                              value: selectedSource,
-                              items: sources.map((source) {
-                                return DropdownMenuItem(
-                                    value: source, child: Text(source));
-                              }).toList(),
-                              onChanged: (value) =>
-                                  setState(() => selectedSource = value!),
-                              decoration:
-                                  const InputDecoration(labelText: "Source"),
-                            ),
-                            const SizedBox(height: 20),
+                                  const SizedBox(height: 10),
 
-                            // Save & Cancel Buttons
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                _actionButton("Save", Colors.green, () {}),
-                                _actionButton("Cancel", Colors.brown, () {}),
-                              ],
+                                  SizedBox(
+                                    width: 293,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xffd9d9d9),
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.3),
+                                            spreadRadius: 2,
+                                            blurRadius: 5,
+                                            offset: const Offset(2, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      padding: const EdgeInsets.all(10),
+                                      child: Wrap(
+                                        spacing: 8.0,
+                                        runSpacing:
+                                            8.0, // Ensures proper spacing in multiple rows
+                                        children: phoneNumbers.map((number) {
+                                          return Container(
+                                            decoration: BoxDecoration(
+                                              color: const Color(
+                                                  0xffd9d9d9), // Background color of each item
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 4),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  number,
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 5),
+                                                GestureDetector(
+                                                  onTap: () => setState(() =>
+                                                      phoneNumbers
+                                                          .remove(number)),
+                                                  child: Container(
+                                                    decoration: BoxDecoration(
+                                                      color: Colors
+                                                          .black, // Background color of the delete button
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              5),
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.all(4),
+                                                    child: const Icon(
+                                                      Icons.close,
+                                                      size: 14,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 10),
+
+                                  if (siteNames.isNotEmpty)
+                                    SizedBox(
+                                      width: 293,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color:
+                                                  Colors.black.withOpacity(0.3),
+                                              spreadRadius: 2,
+                                              blurRadius: 5,
+                                              offset: const Offset(2, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        padding: const EdgeInsets.all(10),
+                                        child: Wrap(
+                                          spacing: 8.0,
+                                          children: siteNames
+                                              .map((site) => Chip(
+                                                    label: Text(site),
+                                                    backgroundColor:
+                                                        Colors.grey[300],
+                                                  ))
+                                              .toList(),
+                                        ),
+                                      ),
+                                    ),
+
+                                  const SizedBox(height: 10),
+
+                                  SizedBox(
+                                    width: 293,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.3),
+                                            spreadRadius: 2,
+                                            blurRadius: 5,
+                                            offset: const Offset(2, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: DropdownButtonFormField<String>(
+                                        value: sources.contains(selectedSource)
+                                            ? selectedSource
+                                            : null, // Ensure valid value
+                                        items: sources.toSet().map((source) {
+                                          // Use `toSet()` to remove duplicates
+                                          return DropdownMenuItem(
+                                              value: source,
+                                              child: Text(source));
+                                        }).toList(),
+                                        onChanged: (value) => setState(
+                                            () => selectedSource = value!),
+                                        decoration: const InputDecoration(
+                                          border: InputBorder.none,
+                                          contentPadding: EdgeInsets.symmetric(
+                                              vertical: 15, horizontal: 10),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 20),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      _actionButton("Save",
+                                          const Color(0xff84A441), () {}),
+                                      _actionButton("Cancel",
+                                          const Color(0xffA47341), () {}),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
 
                             const SizedBox(height: 20),
@@ -291,10 +684,21 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
   }
 
   Widget _actionButton(String label, Color color, VoidCallback onPressed) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(backgroundColor: color),
-      onPressed: onPressed,
-      child: Text(label),
+    return SizedBox(
+      width: 129,
+      height: 54,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(7.33),
+          ),
+          shadowColor: Colors.black,
+          elevation: 5,
+        ),
+        onPressed: onPressed,
+        child: Text(label, style: const TextStyle(color: Colors.white)),
+      ),
     );
   }
 }

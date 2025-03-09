@@ -66,6 +66,15 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
     });
   }
 
+  String formatStatus(String status) {
+    return status
+        .split('_') // Split by underscore
+        .map((word) =>
+            word[0].toUpperCase() +
+            word.substring(1).toLowerCase()) // Capitalize each word
+        .join(' '); // Join them back with a space
+  }
+
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'available':
@@ -251,7 +260,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                       ),
                     ),
                   ),
-                  Icon(Icons.search, color: Color(0xFF84A441)),
+                  const Icon(Icons.search, color: Color(0xFF84A441)),
                 ],
               ),
             ),
@@ -288,8 +297,10 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: "site", child: Text("Group by Site")),
-              const PopupMenuItem(value: "state", child: Text("Group by Status")),
-              const PopupMenuItem(value: "property_type", child: Text("Group by Type")),
+              const PopupMenuItem(
+                  value: "state", child: Text("Group by Status")),
+              const PopupMenuItem(
+                  value: "property_type", child: Text("Group by Type")),
             ],
           ),
         ],
@@ -298,94 +309,98 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   }
 
   Widget _buildGroupedView() {
-  if (selectedGroupBy.isEmpty) {
-    return ListView.builder(
-      itemCount: filteredProperties.length,
-      itemBuilder: (context, index) {
-        return _buildPropertyCard(filteredProperties[index]);
-      },
-    );
-  } else {
-    Map<String, List<Map<String, dynamic>>> groupedData = {};
-    
-    for (var property in filteredProperties) {
-      String key = property[selectedGroupBy]?.toString() ?? "Unknown";
-      groupedData.putIfAbsent(key, () => []).add(property);
+    if (selectedGroupBy.isEmpty) {
+      return ListView.builder(
+        itemCount: filteredProperties.length,
+        itemBuilder: (context, index) {
+          return _buildPropertyCard(filteredProperties[index]);
+        },
+      );
+    } else {
+      Map<String, List<Map<String, dynamic>>> groupedData = {};
+
+      for (var property in filteredProperties) {
+        String key = property[selectedGroupBy]?.toString() ?? "Unknown";
+        groupedData.putIfAbsent(key, () => []).add(property);
+      }
+
+      return ListView(
+        children: groupedData.entries.map((entry) {
+          String groupName = entry.key;
+          List<Map<String, dynamic>> properties = entry.value;
+          int totalProperties = properties.length;
+
+          return _buildGroupCard(
+              groupName, totalProperties, properties,
+              groupedData: groupedData);
+        }).toList(),
+      );
     }
-
-    return ListView(
-      children: groupedData.entries.map((entry) {
-        String groupName = entry.key;
-        List<Map<String, dynamic>> properties = entry.value;
-        int totalProperties = properties.length;
-
-        return _buildGroupCard(groupName, totalProperties, properties, groupedData: groupedData);
-      }).toList(),
-    );
   }
-}
 
+  Map<String, bool> expandedGroups = {};
 
-Map<String, bool> expandedGroups = {};
+  Widget _buildGroupCard(
+      String group, int totalProperties, List<Map<String, dynamic>> properties,
+      {required Map<String, List<Map<String, dynamic>>> groupedData}) {
+    Color iconColor = _getStatusColor(group);
+    IconData iconData =
+        selectedGroupBy == "status" ? Icons.business : Icons.apartment;
 
-Widget _buildGroupCard(String group, int totalProperties, List<Map<String, dynamic>> properties, {required Map<String, List<Map<String, dynamic>>> groupedData}) {
-  Color iconColor = _getStatusColor(group); // Get color dynamically based on group type
-  IconData iconData = selectedGroupBy == "status" ? Icons.business : Icons.apartment;
-
-  return Card(
-    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(16),
-    ),
-    elevation: 2,
-    child: InkWell(
-      onTap: () {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 2,
+      child: InkWell(
+        onTap: () {
         setState(() {
           filteredProperties = groupedData[group]!;
           selectedGroupBy = '';
         });
       },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        height: 115,
-        width: 346,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Icon(iconData, color: iconColor.withOpacity(1), size: 40),
-            const SizedBox(width: 12),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  group,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: iconColor.withOpacity(0.5),
-                  ),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          height: 115,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(iconData, color: iconColor.withOpacity(0.5), size: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      formatStatus(group),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: iconColor.withOpacity(0.5),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Total Properties - $totalProperties",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  "Total Properties - $totalProperties",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 
   Widget _buildPropertyCard(Map<String, dynamic> property) {
     return Container(
@@ -437,25 +452,30 @@ Widget _buildGroupCard(String group, int totalProperties, List<Map<String, dynam
           const SizedBox(height: 5),
           Row(
             children: [
-              _buildPropertyDetail("Gr. Area", property["gross_area"].toString()),
+              _buildPropertyDetail(
+                  "Gr. Area", property["gross_area"].toString()),
               const SizedBox(width: 20),
               _buildPropertyDetail("Nt. Area", property["net_area"].toString()),
               const SizedBox(width: 20),
               Row(
                 children: [
-                  const Icon(FontAwesomeIcons.bed, size: 14, color: Colors.black),
+                  const Icon(FontAwesomeIcons.bed,
+                      size: 14, color: Colors.black),
                   const SizedBox(width: 4),
                   Text(property["bedroom"].toString(),
-                      style: const TextStyle(fontSize: 14, color: Colors.black)),
+                      style:
+                          const TextStyle(fontSize: 14, color: Colors.black)),
                 ],
               ),
               const SizedBox(width: 20),
               Row(
                 children: [
-                  const Icon(FontAwesomeIcons.bath, size: 14, color: Colors.black),
+                  const Icon(FontAwesomeIcons.bath,
+                      size: 14, color: Colors.black),
                   const SizedBox(width: 4),
                   Text(property["bathroom"].toString(),
-                      style: const TextStyle(fontSize: 14, color: Colors.black)),
+                      style:
+                          const TextStyle(fontSize: 14, color: Colors.black)),
                 ],
               ),
             ],
@@ -471,7 +491,7 @@ Widget _buildGroupCard(String group, int totalProperties, List<Map<String, dynam
                   borderRadius: BorderRadius.circular(5),
                 ),
                 child: Text(
-                  property["state"],
+                  formatStatus(property["state"]),
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
