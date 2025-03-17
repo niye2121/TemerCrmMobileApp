@@ -45,16 +45,40 @@ class _PipelineScreenState extends State<PipelineScreen> {
     }
   }
 
+  // void filterPipeline() {
+  //   setState(() {
+  //     filteredPipelines = data.where((data) {
+  //       bool matchesSearch = data.values
+  //           .toString()
+  //           .toLowerCase()
+  //           .contains(searchQuery.toLowerCase());
+
+  //       bool matchesFilter =
+  //           selectedFilter.isEmpty || data["stage"]["name"] == selectedFilter;
+
+  //       return matchesSearch && matchesFilter;
+  //     }).toList();
+  //   });
+  // }
+
   void filterPipeline() {
     setState(() {
-      filteredPipelines = data.where((data) {
-        bool matchesSearch = data.values
-            .toString()
-            .toLowerCase()
-            .contains(searchQuery.toLowerCase());
+      filteredPipelines = data.where((item) {
+        // Check if the search query matches any phone number
+        bool matchesPhone = item["phones"]
+            .any((phone) => phone["phone"].toString().contains(searchQuery));
 
+        // Check if search matches other fields
+        bool matchesSearch =
+            item["name"].toLowerCase().contains(searchQuery.toLowerCase()) ||
+                item["customer"]
+                    .toLowerCase()
+                    .contains(searchQuery.toLowerCase()) ||
+                matchesPhone; // Include phone search
+
+        // Filter by stage
         bool matchesFilter =
-            selectedFilter.isEmpty || data["stage"]["name"] == selectedFilter;
+            selectedFilter.isEmpty || item["stage"]["name"] == selectedFilter;
 
         return matchesSearch && matchesFilter;
       }).toList();
@@ -64,6 +88,47 @@ class _PipelineScreenState extends State<PipelineScreen> {
   void groupByPipeline(String key) {
     setState(() {
       selectedGroupBy = key;
+
+      if (key.isEmpty) {
+        filteredPipelines = data;
+        return;
+      }
+
+      Map<String, List<Map<String, dynamic>>> groupedData = {};
+
+      for (var item in data) {
+        String groupKey = "Unknown";
+
+        if (key.toLowerCase() == "site" &&
+            item["site_ids"] != null &&
+            item["site_ids"].isNotEmpty &&
+            item["site_ids"][0]["name"] != null) {
+          groupKey = item["site_ids"][0]["name"];
+        } else if (key.toLowerCase() == "source" &&
+            item["source"] != null &&
+            item["source"]["name"] != null) {
+          groupKey = item["source"]["name"];
+        } else if (key.toLowerCase() == "stage" &&
+            item["stage"] != null &&
+            item["stage"]["name"] != null) {
+          groupKey = item["stage"]["name"];
+        }
+
+        print("Group Key: $groupKey");
+
+        if (groupKey != "Unknown") {
+          groupedData.putIfAbsent(groupKey, () => []).add(item);
+        }
+      }
+
+      print("Grouped Data Keys: ${groupedData.keys.toList()}");
+
+      filteredPipelines = groupedData.entries.map((e) {
+        return {
+          "group": e.key,
+          "items": e.value,
+        };
+      }).toList();
     });
   }
 
@@ -197,7 +262,6 @@ class _PipelineScreenState extends State<PipelineScreen> {
                     ),
                   ],
                 ),
-                
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -236,7 +300,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
       },
       child: Container(
         width: double.infinity,
-        height:60, // Increased height for better layout
+        height: 60, // Increased height for better layout
         margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
@@ -267,7 +331,10 @@ class _PipelineScreenState extends State<PipelineScreen> {
               child: Text(
                 pipeline["customer"] ?? "N/A",
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: Colors.black, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold),
               ),
             ),
             Container(
@@ -297,87 +364,108 @@ class _PipelineScreenState extends State<PipelineScreen> {
     } else {
       Map<String, List<Map<String, dynamic>>> groupedData = {};
 
-      for (var pipeline in filteredPipelines) {
-        // String key = pipeline[selectedGroupBy]?.toString() ?? "Unknown";
-        String key = pipeline[selectedGroupBy]?['name']?.toString() ?? "Unknown";
+      for (var pipeline in data) {
+        String key = "Unknown";
 
-        groupedData.putIfAbsent(key, () => []).add(pipeline);
+        if (selectedGroupBy.toLowerCase() == "site") {
+          if (pipeline["site_ids"] != null &&
+              pipeline["site_ids"].isNotEmpty &&
+              pipeline["site_ids"][0]["name"] != null) {
+            key = pipeline["site_ids"][0]["name"];
+          }
+        } else if (selectedGroupBy.toLowerCase() == "source") {
+          if (pipeline["source"] != null &&
+              pipeline["source"]["name"] != null) {
+            key = pipeline["source"]["name"];
+          }
+        } else if (selectedGroupBy.toLowerCase() == "stage") {
+          if (pipeline["stage"] != null && pipeline["stage"]["name"] != null) {
+            key = pipeline["stage"]["name"];
+          }
+        }
+
+        print("Grouping Key: $key");
+
+        if (key != "Unknown") {
+          groupedData.putIfAbsent(key, () => []).add(pipeline);
+        }
       }
+
+      print("Final Grouped Data: ${groupedData.keys.toList()}");
 
       return ListView(
         children: groupedData.entries.map((entry) {
-          String groupName = entry.key;
-          List<Map<String, dynamic>> pipelines = entry.value;
-          int totalPipelines = pipelines.length;
-
-          return _buildGroupCard(groupName, totalPipelines, pipelines,
-              groupedData: groupedData);
+          return _buildGroupCard(
+            entry.key,
+            entry.value.length,
+            entry.value,
+            groupedData: groupedData,
+          );
         }).toList(),
       );
     }
   }
 
   Widget _buildGroupCard(
-    String group, int totalPipelines, List<Map<String, dynamic>> pipelines,
-    {required Map<String, List<Map<String, dynamic>>> groupedData}) {
-  Color iconColor = _getStageColor(group);
-  IconData iconData = Icons.business_center; // Adjust icon as needed
+    String group,
+    int totalPipelines,
+    List<Map<String, dynamic>> pipelines, {
+    required Map<String, List<Map<String, dynamic>>> groupedData,
+  }) {
+    Color iconColor = _getStageColor(group);
+    IconData iconData = Icons.business_center; // Adjust icon as needed
 
-  return Card(
-    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    elevation: 2,
-    child: InkWell(
-      onTap: () {
-        setState(() {
-          filteredPipelines = groupedData[group]!;
-          selectedGroupBy = '';
-        });
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        height: 115,
-        child: Row(
-          children: [
-            /// Center the icon vertically
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(iconData, color: iconColor.withOpacity(1), size: 50),
-              ],
-            ),
-            const SizedBox(width: 12),
-
-            /// Text content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center, // Center vertically
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            filteredPipelines = groupedData[group]!; // Filter by group
+            selectedGroupBy = ''; // Reset the selected group
+          });
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          height: 115,
+          child: Row(
+            children: [
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    group,
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: iconColor.withOpacity(0.5)),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "Total Pipelines - $totalPipelines",
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
+                  Icon(iconData, color: iconColor.withOpacity(1), size: 50),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      group,
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: iconColor.withOpacity(0.5)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Total Pipelines - $totalPipelines",
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 
   Widget _buildSearchAndFilter() {
     return Padding(
@@ -452,7 +540,21 @@ class _PipelineScreenState extends State<PipelineScreen> {
             itemBuilder: (context) => [
               const PopupMenuItem(
                   value: "stage", child: Text("Group by Stage")),
+              const PopupMenuItem(value: "Site", child: Text("Group by Site")),
+              const PopupMenuItem(
+                  value: "Source", child: Text("Group by Source")),
             ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xff84a441)),
+            onPressed: () {
+              setState(() {
+                searchQuery = '';
+                selectedFilter = '';
+                selectedGroupBy = '';
+                filteredPipelines = data;
+              });
+            },
           ),
         ],
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/screens/properties_screen.dart';
+import 'package:temer/screens/reservations_screen.dart';
 import 'package:temer/services/api_service.dart';
 import 'pipeline_screen.dart';
 
@@ -59,10 +60,10 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       {
         "icon": Icons.insert_drive_file,
-        "label": "Reservations",
-        "screen": null
+        "label": "My Reservations",
+        "screen": const ReservationsScreen()
       },
-      {"icon": Icons.checklist_sharp, "label": "My Activities", "screen": null},
+      {"icon": Icons.checklist_sharp, "label": "My Transfer Requests", "screen": null},
       {"icon": Icons.notifications, "label": "Updates", "screen": null},
     ];
 
@@ -164,57 +165,60 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildGridItem(
-      IconData icon, String label, Widget? screen, int index) {
-    bool isSelected = selectedIndex == index;
+    IconData icon, String label, Widget? screen, int index) {
+  bool isSelected = selectedIndex == index;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedIndex = index;
-        });
-        if (screen != null) {
-          Navigator.push(
-              context, MaterialPageRoute(builder: (context) => screen));
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: 171,
-        height: 173,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xff84A441)
-              : const Color(0xff84A441).withOpacity(0.29),
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected ? Border.all(color: Colors.white, width: 4) : null,
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.green.withOpacity(0.5),
-                    blurRadius: 8,
-                    spreadRadius: 2,
-                  )
-                ]
-              : [],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon,
-                size: 60,
-                color: isSelected ? Colors.white : const Color(0xff84A441)),
-            const SizedBox(height: 10),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isSelected ? Colors.white : Colors.black87,
-              ),
-            ),
-          ],
-        ),
+  return GestureDetector(
+    onTap: () {
+      setState(() {
+        selectedIndex = index;
+      });
+      if (screen != null) {
+        Navigator.push(
+            context, MaterialPageRoute(builder: (context) => screen));
+      }
+    },
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      width: 171,
+      height: 173,
+      decoration: BoxDecoration(
+        color: isSelected
+            ? const Color(0xff84A441)
+            : const Color(0xff84A441).withOpacity(0.29),
+        borderRadius: BorderRadius.circular(12),
+        border: isSelected ? Border.all(color: Colors.white, width: 4) : null,
+        boxShadow: isSelected
+            ? [
+                BoxShadow(
+                  color: Colors.green.withOpacity(0.5),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                )
+              ]
+            : [],
       ),
-    );
-  }
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center, // Centers vertically
+        crossAxisAlignment: CrossAxisAlignment.center, // Centers horizontally
+        children: [
+          Icon(icon,
+              size: 60,
+              color: isSelected ? Colors.white : const Color(0xff84A441)),
+          const SizedBox(height: 10),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: isSelected ? Colors.white : Colors.black87,
+            ),
+            textAlign: TextAlign.center, // Centers text horizontally
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 }

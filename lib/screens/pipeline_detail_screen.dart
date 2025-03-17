@@ -1,9 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
+import 'package:temer/screens/new_reservation_screen.dart';
+import 'package:temer/screens/pipeline_screen.dart';
 import 'package:temer/services/api_service.dart';
-// ignore: depend_on_referenced_packages
-import 'package:intl_phone_field/intl_phone_field.dart';
 
 class PipelineDetailScreen extends StatefulWidget {
   final String pipelineId;
@@ -17,11 +19,12 @@ class PipelineDetailScreen extends StatefulWidget {
 
 class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
   late TextEditingController nameController;
+  final TextEditingController phoneNumberController = TextEditingController();
 
   List<String> phoneNumbers = [];
-  String selectedSource = 'Facebook';
-  List<String> sources = [];
+  String? selectedSource;
   List<String> siteNames = [];
+  List<String> selectedSites = [];
 
   String stage = "";
   int reservations = 0;
@@ -30,13 +33,19 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
 
   bool isLoading = true;
   String errorMessage = '';
+  String selectedCountry = 'Ethiopia';
+  String selectedPhoneCode = '251';
+  int? selectedCountryId;
+  List<Map<String, dynamic>> countries = [];
+  List<Map<String, dynamic>> sites = [];
+  List<Map<String, dynamic>> sources = [];
 
   @override
   void initState() {
     super.initState();
     nameController = TextEditingController();
     fetchPipelineDetail();
-    fetchSources();
+    fetchDropdownData();
   }
 
   @override
@@ -45,43 +54,99 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     super.dispose();
   }
 
-  void fetchSources() async {
-    List<Map<String, dynamic>> data = await ApiService().fetchSourceData();
+  List<Map<String, dynamic>> fetchedPhones = []; // Store fetched phones
 
-    // Assuming the source name is stored under a key like "name"
-    setState(() {
-      sources = data.map((item) => item['name'].toString()).toList();
-    });
+  Future<void> fetchDropdownData() async {
+    try {
+      countries = await ApiService().fetchCountryData();
+      sites = await ApiService().fetchSitesData();
+      sources = await ApiService().fetchSourceData();
+
+      debugPrint('sources fetched in the fetchDropDownData: $sources');
+
+      for (var site in sites) {
+        site["selected"] = site["selected"] ?? false;
+      }
+
+      // Preserve Ethiopia as default country unless the user selects another
+      final ethiopia = countries.firstWhere(
+        (country) => country['name'] == "Ethiopia",
+        orElse: () => {'id': -1, 'name': "Ethiopia", 'phone_code': 251},
+      );
+
+      // Set default values for Ethiopia
+      selectedCountry = ethiopia['name']; // Store the name
+      selectedPhoneCode = ethiopia['id']; // Store the numeric ID
+      selectedPhoneCode = "${ethiopia['phone_code']}"; // Store the phone code
+
+      setState(() {});
+    } catch (e) {
+      debugPrint("Error fetching data: $e");
+    }
   }
 
   Future<void> fetchPipelineDetail() async {
     try {
+      if (sources.isEmpty) {
+        await fetchDropdownData();
+      }
+
       final response =
           await ApiService().fetchPipelineDetail(int.parse(widget.pipelineId));
       final data = response['data'];
 
+      debugPrint(data.toString());
+
       setState(() {
-        nameController.text = data['name'] ?? '';
+        nameController.text = data['customer'] ?? '';
         stage = data['stage']?['name'] ?? "N/A";
         reservations = data['reservation_count'] ?? 0;
 
-        phoneNumbers = (data['phone'] as List?)
-                ?.map((p) => p['phone'].toString())
+        fetchedPhones = (data['phone'] as List?)
+                ?.where(
+                    (p) => p is Map<String, dynamic> && p.containsKey('phone'))
+                .map((p) => {
+                      "id": p["id"].toString(),
+                      "country_id": p["country_id"],
+                      "phone": p["phone"]
+                    })
                 .toList() ??
             [];
+
+        phoneNumbers = fetchedPhones.map((p) => p["phone"].toString()).toList();
 
         siteNames = (data['site_ids'] as List?)
-                ?.map((site) => site['name'].toString())
+                ?.where((site) =>
+                    site is Map<String, dynamic> && site.containsKey('name'))
+                .map((site) => site['name'].toString())
                 .toList() ??
             [];
 
-        // Ensure `data['source_id']` is in `sources`
-        if (sources.contains(data['source_id'])) {
-          selectedSource = data['source_id'];
-        } else if (sources.isNotEmpty) {
-          selectedSource = sources.first; // Default to first valid source
-        } else {
-          selectedSource = ''; // Empty if no sources available
+        selectedSites = List.from(siteNames);
+
+        debugPrint("Fetched siteNames: $siteNames");
+        debugPrint("Updated selectedSites: $selectedSites");
+
+        if (data.containsKey('source_id')) {
+          int sourceId = data['source_id'];
+
+          debugPrint("Fetched source_id: $sourceId");
+          debugPrint("Sources list: ${sources.toString()}");
+
+          try {
+            var foundSource = sources.firstWhere(
+              (source) => source['id'] == sourceId,
+              orElse: () => {},
+            );
+
+            selectedSource =
+                foundSource.isNotEmpty ? foundSource['name'] : 'Unknown Source';
+          } catch (e) {
+            debugPrint("Error finding source: $e");
+            selectedSource = 'Unknown Source';
+          }
+
+          debugPrint('Selected source: $selectedSource');
         }
 
         isLoading = false;
@@ -94,8 +159,418 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     }
   }
 
+  int getDefaultCountryId() {
+  // Find Ethiopia in the countries list
+  final ethiopia = countries.firstWhere(
+    (country) => country["name"] == "Ethiopia",
+    orElse: () => countries.isNotEmpty ? countries.first : {"id": 1},
+  );
+
+  return ethiopia["id"];
+}
+
+  Future<void> updatePipelineDetail() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      int defaultCountryId = getDefaultCountryId();
+      List<Map<String, dynamic>> updatedPhones = [];
+
+      // Preserve existing phone numbers
+      for (var existingPhone in fetchedPhones) {
+        updatedPhones.add({
+          "id": existingPhone["id"].toString(),
+          "country_id": existingPhone["country_id"],
+          "phone": existingPhone["phone"].toString(),
+        });
+      }
+
+      // Add new phone from text field (WITHOUT ID)
+      String newPhoneNumber = phoneNumberController.text.trim();
+      if (newPhoneNumber.isNotEmpty) {
+        updatedPhones.add({
+          "country_id": selectedCountryId ?? defaultCountryId,
+          "phone": newPhoneNumber.replaceAll("+", "").trim().toString()
+        });
+      }
+
+      // Ensure at least one phone exists
+      if (updatedPhones.isEmpty) {
+        showErrorDialog("At least one phone number is required.");
+        return;
+      }
+
+      updatedPhones = updatedPhones
+          .where((p) =>
+              phoneNumbers.contains(p["phone"]) ||
+              p["phone"] == newPhoneNumber.replaceAll("+", "").trim())
+          .toList();
+
+      // Build final payload
+      final Map<String, dynamic> pipelineData = {
+        "id": int.parse(widget.pipelineId),
+        "customer_name": nameController.text,
+        "source_id": sources
+            .firstWhere((source) => source['name'] == selectedSource)['id'],
+        "phones": updatedPhones.map((p) {
+          return {
+            "country_id": p["country_id"] ?? selectedCountryId,
+            "phone": p["phone"]
+                .replaceAll("+", "")
+                .replaceAll(selectedPhoneCode, "")
+                .trim()
+          };
+        }).toList(),
+        "site_ids": selectedSites.map((site) {
+          return sites.firstWhere((s) => s['name'] == site)['id'];
+        }).toList(),
+      };
+
+      debugPrint("Final API Payload: ${jsonEncode(pipelineData)}");
+
+      final response = await ApiService().updatePipeline(pipelineData);
+
+      if (response["status"] == 200) {
+        await fetchPipelineDetail();
+        setState(() {
+          isLoading = false;
+        });
+        showSuccessDialog(response["data"]["message"]);
+      } else {
+        showErrorDialog(response["data"]["message"]);
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      showErrorDialog("Failed to update pipeline: $e");
+    }
+  }
+
+  void _showMultiSelectDialog() {
+    List<String> tempSelectedSites =
+        List.from(selectedSites);
+
+    debugPrint(
+        'Opening MultiSelectDialog with tempSelectedSites: $tempSelectedSites');
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setDialogState) {
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.4,
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: sites.map((site) {
+                          bool isSelected =
+                              tempSelectedSites.contains(site["name"]);
+
+                          return CheckboxListTile(
+                            value: isSelected,
+                            title: Text(
+                              site["name"],
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            onChanged: (bool? newValue) {
+                              setDialogState(() {
+                                if (newValue == true) {
+                                  if (!tempSelectedSites
+                                      .contains(site["name"])) {
+                                    tempSelectedSites.add(site["name"]);
+                                  }
+                                } else {
+                                  tempSelectedSites.remove(site["name"]);
+                                }
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xff84A441),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(7.33),
+                            ),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              selectedSites = List.from(tempSelectedSites);
+                              siteNames = List.from(
+                                  tempSelectedSites);
+                            });
+                            Navigator.pop(context);
+                          },
+                          child: const Text("OK",
+                              style: TextStyle(color: Colors.white)),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xffA47341),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(7.33),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          child: const Text("Cancel",
+                              style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void setDefaultCountry() {
+    // Ensure Ethiopia is set as the default country
+    final ethiopia = countries.firstWhere(
+      (country) => country['name'] == "Ethiopia",
+      orElse: () =>
+          {'name': "Ethiopia", 'phone_code': 251}, // Hardcoded fallback
+    );
+    selectedCountry = ethiopia['name'];
+    selectedPhoneCode = "${ethiopia['phone_code']}";
+  }
+
+  void _showCountryPicker() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        TextEditingController searchController = TextEditingController();
+        List<Map<String, dynamic>> filteredCountries = List.from(countries);
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: Colors.white,
+                ),
+                child: SingleChildScrollView(
+                  // 🔹 Allow scrolling if content overflows
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Search Field
+                      TextField(
+                        controller: searchController,
+                        decoration: InputDecoration(
+                          hintText: "Search country...",
+                          prefixIcon: const Icon(Icons.search),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                        ),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            filteredCountries = countries
+                                .where((country) => country['name']
+                                    .toString()
+                                    .toLowerCase()
+                                    .contains(value.toLowerCase()))
+                                .toList();
+                          });
+                        },
+                      ),
+                      SizedBox(height: 12),
+
+                      // Country List (🔹 Flexible to avoid overflow)
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height *
+                              0.5, // 50% of screen height
+                        ),
+                        child: Scrollbar(
+                          child: ListView.builder(
+                            shrinkWrap:
+                                true, // 🔹 Prevents infinite height issue
+                            itemCount: filteredCountries.length,
+                            itemBuilder: (context, index) {
+                              var country = filteredCountries[index];
+                              return InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    selectedCountryId =
+                                        country['id']; // ✅ Correct
+                                    selectedCountry =
+                                        country['name']; // ✅ Correct
+                                    selectedPhoneCode = country['phone_code']
+                                        .toString(); // ✅ Correct
+                                  });
+                                  Navigator.pop(context);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 8, horizontal: 12),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 6, horizontal: 12),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xff84A441)
+                                              .withOpacity(0.5),
+                                          borderRadius: BorderRadius.circular(
+                                              8), // Rounded corners
+                                          border: Border.all(
+                                              color: const Color(0xff84A441)
+                                                  .withOpacity(0.5),
+                                              width: 1),
+                                          boxShadow: const [
+                                            BoxShadow(
+                                              color: Colors.black12,
+                                              blurRadius: 4,
+                                              offset: Offset(2, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          "+${country['phone_code'].toString()}",
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors
+                                                .white, // White text to contrast with the theme color
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+
+                                      // Country Name
+                                      Expanded(
+                                        child: Text(
+                                          country['name'],
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Row(
+          children: [
+            Icon(Icons.error, color: Colors.red, size: 28),
+            SizedBox(width: 8),
+            Text("Error",
+                style:
+                    TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(message, style: const TextStyle(fontSize: 16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK",
+                style:
+                    TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle,
+                color: Colors.green, size: 28), // ✅ Success icon
+            SizedBox(width: 8),
+            Text("Success",
+                style: TextStyle(
+                    color: Colors.green, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(message, style: const TextStyle(fontSize: 16)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PipelineScreen(),
+                ),
+              );
+            },
+            child: const Text("OK",
+                style: TextStyle(
+                    color: Colors.green, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    bool isEditable =
+        !(stage == "Reservation" || stage == "Expired" || stage == "Lost");
+
     return Scaffold(
       backgroundColor: Colors.grey[200],
       body: isLoading
@@ -122,6 +597,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                       padding: const EdgeInsets.all(20.0),
                       child: SingleChildScrollView(
                         child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const SizedBox(height: 40),
                             Row(
@@ -162,12 +638,14 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                         try {
                                           await ApiService().logout();
                                           Navigator.pushReplacement(
+                                            // ignore: use_build_context_synchronously
                                             context,
                                             MaterialPageRoute(
                                                 builder: (context) =>
                                                     const LoginScreen()),
                                           );
                                         } catch (e) {
+                                          // ignore: use_build_context_synchronously
                                           ScaffoldMessenger.of(context)
                                               .showSnackBar(
                                             SnackBar(
@@ -221,159 +699,101 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                   ),
                                   const SizedBox(height: 10),
                                   Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment: MainAxisAlignment
+                                        .end, // Aligns to the right
                                     children: [
-                                      SizedBox(
-                                        width: 134,
-                                        height: 64,
-                                        child: ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                const Color(0xff84A441),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(7.33),
-                                            ),
-                                            padding: EdgeInsets.zero,
-                                            shadowColor: Colors.black,
-                                            elevation: 5,
+                                      PopupMenuButton<String>(
+                                        onSelected: (value) {
+                                          switch (value) {
+                                            case 'view_activities':
+                                              // Handle action
+                                              break;
+                                            case 'view_reservations':
+                                              // Handle action
+                                              break;
+                                            case 'add_activities':
+                                              // Handle action
+                                              break;
+                                            case 'add_reservation':
+                                              Navigator.pushReplacement(
+                                                context,
+                                                MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        NewReservationScreen()),
+                                              );
+                                              break;
+                                            case 'mark_lost':
+                                              // Handle action
+                                              break;
+                                          }
+                                        },
+                                        color: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        itemBuilder: (BuildContext context) {
+                                          if (stage == "Expired" ||
+                                              stage == "Lost") {
+                                            // Show only limited options
+                                            return [
+                                              const PopupMenuItem(
+                                                  value: 'view_activities',
+                                                  child:
+                                                      Text('View Activities')),
+                                              const PopupMenuItem(
+                                                  value: 'view_reservations',
+                                                  child: Text(
+                                                      'View Reservations')),
+                                            ];
+                                          } else {
+                                            // Show all options
+                                            return [
+                                              const PopupMenuItem(
+                                                  value: 'view_activities',
+                                                  child:
+                                                      Text('View Activities')),
+                                              const PopupMenuItem(
+                                                  value: 'view_reservations',
+                                                  child: Text(
+                                                      'View Reservations')),
+                                              const PopupMenuItem(
+                                                  value: 'add_activities',
+                                                  child: Text('Add Activity')),
+                                              const PopupMenuItem(
+                                                  value: 'add_reservation',
+                                                  child:
+                                                      Text('Add Reservation')),
+                                              const PopupMenuItem(
+                                                  value: 'mark_lost',
+                                                  child: Text('Mark as Lost')),
+                                            ];
+                                          }
+                                        },
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xff84A441),
+                                            borderRadius:
+                                                BorderRadius.circular(7.33),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black
+                                                    .withOpacity(0.3),
+                                                spreadRadius: 2,
+                                                blurRadius: 5,
+                                                offset: const Offset(0, 3),
+                                              ),
+                                            ],
                                           ),
-                                          onPressed: () {},
+                                          width: 116,
+                                          height: 52,
                                           child: const Center(
                                             child: Text(
-                                              "View Activities",
+                                              "Action",
                                               style: TextStyle(
                                                 color: Colors.white,
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 144,
-                                        height: 64,
-                                        child: ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                const Color(0xff84A441),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(7.33),
-                                            ),
-                                            padding: EdgeInsets.zero,
-                                            shadowColor: Colors.black,
-                                            elevation: 5,
-                                          ),
-                                          onPressed: () {},
-                                          child: const Center(
-                                            child: Text(
-                                              "View Reservations",
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      Expanded(
-                                        child: SizedBox(
-                                          height: 58,
-                                          child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  const Color(0xff84A441),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(7.33),
-                                              ),
-                                              shadowColor: Colors.black,
-                                              padding: EdgeInsets.zero,
-                                              elevation: 5,
-                                            ),
-                                            onPressed: () {},
-                                            child: const Center(
-                                              child: Text(
-                                                "Add\nActivities",
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: SizedBox(
-                                          height: 58,
-                                          child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  const Color(0xff84A441),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(7.33),
-                                              ),
-                                              shadowColor: Colors.black,
-                                              padding: EdgeInsets.zero,
-                                              elevation: 5,
-                                            ),
-                                            onPressed: () {},
-                                            child: const Center(
-                                              child: Text(
-                                                "Add\nReservation",
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: SizedBox(
-                                          height: 58,
-                                          child: ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  const Color(0xffA47341),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(7.33),
-                                              ),
-                                              shadowColor: Colors.black,
-                                              padding: EdgeInsets.zero,
-                                              elevation: 5,
-                                            ),
-                                            onPressed: () {},
-                                            child: const Center(
-                                              child: Text(
-                                                "Mark\nas Lost",
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
                                               ),
                                             ),
                                           ),
@@ -400,6 +820,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                       ),
                                       child: TextField(
                                         controller: nameController,
+                                        enabled: isEditable,
                                         decoration: const InputDecoration(
                                           border: InputBorder.none,
                                           contentPadding: EdgeInsets.symmetric(
@@ -413,14 +834,17 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 10),
-
                                   SizedBox(
                                     width: 293,
                                     child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
-                                        Expanded(
-                                          flex: 2,
+                                        GestureDetector(
+                                          onTap: _showCountryPicker,
                                           child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 25, vertical: 15),
                                             decoration: BoxDecoration(
                                               color: Colors.white,
                                               borderRadius:
@@ -429,38 +853,27 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                                 BoxShadow(
                                                   color: Colors.black
                                                       .withOpacity(0.3),
-                                                  spreadRadius: 2,
-                                                  blurRadius: 5,
-                                                  offset: const Offset(2, 2),
+                                                  offset: const Offset(4, 4),
+                                                  blurRadius: 6,
                                                 ),
                                               ],
                                             ),
-                                            child: TextField(
-                                              decoration: const InputDecoration(
-                                                border: InputBorder.none,
-                                                contentPadding:
-                                                    EdgeInsets.symmetric(
-                                                        vertical: 15,
-                                                        horizontal: 10),
-                                                hintText: 'Country Code',
-                                              ),
-                                              controller: TextEditingController(
-                                                  text: phoneCode),
-                                              onChanged: (value) {
-                                                setState(() {
-                                                  phoneCode = value;
-                                                });
-                                              },
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
+                                              children: [
+                                                Text(selectedPhoneCode),
+                                                const Icon(
+                                                    Icons.arrow_drop_down),
+                                              ],
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 10),
+                                        const SizedBox(width: 5),
+
+                                        // Use a TextField with the controller
                                         Expanded(
-                                          flex: 5,
                                           child: Container(
                                             decoration: BoxDecoration(
                                               color: Colors.white,
@@ -477,24 +890,16 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                               ],
                                             ),
                                             child: TextField(
+                                              controller: phoneNumberController,
+                                              keyboardType: TextInputType.phone,
                                               decoration: const InputDecoration(
-                                                border: InputBorder.none,
+                                                hintText: "phone number",
+                                                border: InputBorder
+                                                    .none, // Removes default border
                                                 contentPadding:
                                                     EdgeInsets.symmetric(
-                                                        vertical: 15,
-                                                        horizontal: 10),
-                                                hintText: 'Phone Number',
-                                              ),
-                                              controller: TextEditingController(
-                                                  text: phoneNumber),
-                                              onChanged: (value) {
-                                                setState(() {
-                                                  phoneNumber = value;
-                                                });
-                                              },
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.bold,
+                                                        horizontal: 10,
+                                                        vertical: 15),
                                               ),
                                             ),
                                           ),
@@ -502,9 +907,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                       ],
                                     ),
                                   ),
-
                                   const SizedBox(height: 10),
-
                                   SizedBox(
                                     width: 293,
                                     child: Container(
@@ -521,41 +924,53 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                           ),
                                         ],
                                       ),
-                                      padding: const EdgeInsets.all(10),
-                                      child: Wrap(
-                                        spacing: 8.0,
-                                        runSpacing:
-                                            8.0, // Ensures proper spacing in multiple rows
-                                        children: phoneNumbers.map((number) {
+                                      padding: const EdgeInsets.only(
+                                          left: 8, right: 8, bottom: 8),
+                                      child: GridView.builder(
+                                        shrinkWrap: true,
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
+                                        gridDelegate:
+                                            const SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: 2,
+                                          crossAxisSpacing: 2.0,
+                                          mainAxisSpacing: 2.0,
+                                          childAspectRatio: 3,
+                                        ),
+                                        itemCount: phoneNumbers.length,
+                                        itemBuilder: (context, index) {
+                                          final number = phoneNumbers[index];
                                           return Container(
                                             decoration: BoxDecoration(
-                                              color: const Color(
-                                                  0xffd9d9d9), // Background color of each item
+                                              color: const Color(0xffd9d9d9),
                                               borderRadius:
                                                   BorderRadius.circular(10),
                                             ),
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 4),
+                                                horizontal: 4, vertical: 3),
                                             child: Row(
-                                              mainAxisSize: MainAxisSize.min,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
                                               children: [
-                                                Text(
-                                                  number,
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.black87,
+                                                Flexible(
+                                                  child: Text(
+                                                    number,
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: Colors.black87,
+                                                    ),
                                                   ),
                                                 ),
-                                                const SizedBox(width: 5),
                                                 GestureDetector(
                                                   onTap: () => setState(() =>
                                                       phoneNumbers
                                                           .remove(number)),
                                                   child: Container(
                                                     decoration: BoxDecoration(
-                                                      color: Colors
-                                                          .black, // Background color of the delete button
+                                                      color: Colors.black,
                                                       borderRadius:
                                                           BorderRadius.circular(
                                                               5),
@@ -572,47 +987,58 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                               ],
                                             ),
                                           );
-                                        }).toList(),
+                                        },
                                       ),
                                     ),
                                   ),
-
                                   const SizedBox(height: 10),
-
-                                  if (siteNames.isNotEmpty)
-                                    SizedBox(
+                                  GestureDetector(
+                                    onTap: _showMultiSelectDialog,
+                                    child: Container(
                                       width: 293,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color:
-                                                  Colors.black.withOpacity(0.3),
-                                              spreadRadius: 2,
-                                              blurRadius: 5,
-                                              offset: const Offset(2, 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.3),
+                                            spreadRadius: 2,
+                                            blurRadius: 5,
+                                            offset: const Offset(2, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      padding: const EdgeInsets.all(10),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          if (siteNames.isNotEmpty)
+                                            Expanded(
+                                              child: Wrap(
+                                                spacing: 4.0,
+                                                runSpacing: 2.0,
+                                                children: siteNames
+                                                    .map((site) => Chip(
+                                                          label: Text(site),
+                                                          backgroundColor:
+                                                              Colors.grey[300],
+                                                        ))
+                                                    .toList(),
+                                              ),
                                             ),
-                                          ],
-                                        ),
-                                        padding: const EdgeInsets.all(10),
-                                        child: Wrap(
-                                          spacing: 8.0,
-                                          children: siteNames
-                                              .map((site) => Chip(
-                                                    label: Text(site),
-                                                    backgroundColor:
-                                                        Colors.grey[300],
-                                                  ))
-                                              .toList(),
-                                        ),
+                                          const Padding(
+                                            padding:
+                                                EdgeInsets.only(left: 10.0),
+                                            child: Icon(Icons.arrow_drop_down,
+                                                color: Colors.black),
+                                          ),
+                                        ],
                                       ),
                                     ),
-
+                                  ),
                                   const SizedBox(height: 10),
-
                                   SizedBox(
                                     width: 293,
                                     child: Container(
@@ -630,17 +1056,20 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                         ],
                                       ),
                                       child: DropdownButtonFormField<String>(
-                                        value: sources.contains(selectedSource)
-                                            ? selectedSource
-                                            : null, // Ensure valid value
-                                        items: sources.toSet().map((source) {
-                                          // Use `toSet()` to remove duplicates
-                                          return DropdownMenuItem(
-                                              value: source,
-                                              child: Text(source));
+                                        value: selectedSource,
+                                        items: sources.map((source) {
+                                          return DropdownMenuItem<String>(
+                                            value: source[
+                                                'name'], // Ensure the source name is used
+                                            child: Text(source['name']),
+                                          );
                                         }).toList(),
-                                        onChanged: (value) => setState(
-                                            () => selectedSource = value!),
+                                        onChanged: (value) {
+                                          setState(() {
+                                            selectedSource =
+                                                value!; // Update selectedSource with the name
+                                          });
+                                        },
                                         decoration: const InputDecoration(
                                           border: InputBorder.none,
                                           contentPadding: EdgeInsets.symmetric(
@@ -649,16 +1078,28 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                       ),
                                     ),
                                   ),
-
                                   const SizedBox(height: 20),
                                   Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceEvenly,
                                     children: [
-                                      _actionButton("Save",
-                                          const Color(0xff84A441), () {}),
-                                      _actionButton("Cancel",
-                                          const Color(0xffA47341), () {}),
+                                      _actionButton(
+                                          "Save",
+                                          const Color(0xff84A441),
+                                          updatePipelineDetail),
+                                      _actionButton(
+                                        "Cancel",
+                                        const Color(0xff000000)
+                                            .withOpacity(0.37),
+                                        () {
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (context) =>
+                                                    const PipelineScreen()),
+                                          );
+                                        },
+                                      ),
                                     ],
                                   ),
                                 ],
