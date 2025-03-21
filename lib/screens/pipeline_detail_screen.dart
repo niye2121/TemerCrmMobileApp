@@ -1,10 +1,12 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/screens/new_reservation_screen.dart';
 import 'package:temer/screens/pipeline_screen.dart';
+import 'package:temer/screens/reservations_screen.dart';
 import 'package:temer/services/api_service.dart';
 
 class PipelineDetailScreen extends StatefulWidget {
@@ -100,7 +102,13 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
       setState(() {
         nameController.text = data['customer'] ?? '';
         stage = data['stage']?['name'] ?? "N/A";
+        debugPrint('stage in fetchPipelineDetail: $stage');
         reservations = data['reservation_count'] ?? 0;
+
+        if (data.containsKey('id')) {
+          int partnerId = data['id']; // Use `id` as `partner_id`
+          _savePartnerId(partnerId);
+        }
 
         fetchedPhones = (data['phone'] as List?)
                 ?.where(
@@ -126,6 +134,9 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
 
         debugPrint("Fetched siteNames: $siteNames");
         debugPrint("Updated selectedSites: $selectedSites");
+
+        // Store registered sites in SharedPreferences
+        _saveRegisteredSites(siteNames);
 
         if (data.containsKey('source_id')) {
           int sourceId = data['source_id'];
@@ -159,15 +170,36 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     }
   }
 
-  int getDefaultCountryId() {
-  // Find Ethiopia in the countries list
-  final ethiopia = countries.firstWhere(
-    (country) => country["name"] == "Ethiopia",
-    orElse: () => countries.isNotEmpty ? countries.first : {"id": 1},
-  );
+  Future<void> _savePartnerId(int partnerId) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setInt("partner_id", partnerId);
+      debugPrint("Partner ID saved: $partnerId");
+    } catch (e) {
+      debugPrint("Error saving partner ID: $e");
+    }
+  }
 
-  return ethiopia["id"];
-}
+// Save registered sites in SharedPreferences
+  Future<void> _saveRegisteredSites(List<String> sites) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList("registered_sites", sites);
+      debugPrint("Registered sites saved: $sites");
+    } catch (e) {
+      debugPrint("Error saving registered sites: $e");
+    }
+  }
+
+  int getDefaultCountryId() {
+    // Find Ethiopia in the countries list
+    final ethiopia = countries.firstWhere(
+      (country) => country["name"] == "Ethiopia",
+      orElse: () => countries.isNotEmpty ? countries.first : {"id": 1},
+    );
+
+    return ethiopia["id"];
+  }
 
   Future<void> updatePipelineDetail() async {
     setState(() {
@@ -250,8 +282,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
   }
 
   void _showMultiSelectDialog() {
-    List<String> tempSelectedSites =
-        List.from(selectedSites);
+    List<String> tempSelectedSites = List.from(selectedSites);
 
     debugPrint(
         'Opening MultiSelectDialog with tempSelectedSites: $tempSelectedSites');
@@ -286,12 +317,14 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                             onChanged: (bool? newValue) {
                               setDialogState(() {
                                 if (newValue == true) {
-                                  if (!tempSelectedSites
-                                      .contains(site["name"])) {
-                                    tempSelectedSites.add(site["name"]);
-                                  }
+                                  tempSelectedSites.add(site["name"]);
                                 } else {
-                                  tempSelectedSites.remove(site["name"]);
+                                  if (tempSelectedSites.length > 1) {
+                                    tempSelectedSites.remove(site["name"]);
+                                  } else {
+                                    showErrorDialog(
+                                        "At least one site must be selected.");
+                                  }
                                 }
                               });
                             },
@@ -314,8 +347,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                           onPressed: () {
                             setState(() {
                               selectedSites = List.from(tempSelectedSites);
-                              siteNames = List.from(
-                                  tempSelectedSites);
+                              siteNames = List.from(tempSelectedSites);
                             });
                             Navigator.pop(context);
                           },
@@ -373,7 +405,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Container(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   color: Colors.white,
@@ -409,7 +441,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                           });
                         },
                       ),
-                      SizedBox(height: 12),
+                      const SizedBox(height: 12),
 
                       // Country List (🔹 Flexible to avoid overflow)
                       ConstrainedBox(
@@ -427,12 +459,10 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                               return InkWell(
                                 onTap: () {
                                   setState(() {
-                                    selectedCountryId =
-                                        country['id']; // ✅ Correct
-                                    selectedCountry =
-                                        country['name']; // ✅ Correct
-                                    selectedPhoneCode = country['phone_code']
-                                        .toString(); // ✅ Correct
+                                    selectedCountryId = country['id'];
+                                    selectedCountry = country['name'];
+                                    selectedPhoneCode =
+                                        country['phone_code'].toString();
                                   });
                                   Navigator.pop(context);
                                 },
@@ -568,8 +598,12 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    bool isEditable =
-        !(stage == "Reservation" || stage == "Expired" || stage == "Lost");
+    bool isReservationStage = stage == "Reservation";
+
+    debugPrint('Current stage: $stage');
+    debugPrint('isReservationStage: $isReservationStage');
+
+    bool isInactiveStage = stage == "Expired" || stage == "Lost";
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
@@ -703,27 +737,34 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                         .end, // Aligns to the right
                                     children: [
                                       PopupMenuButton<String>(
-                                        onSelected: (value) {
+                                        onSelected: (value) async {
+                                          if (isInactiveStage) return;
                                           switch (value) {
-                                            case 'view_activities':
-                                              // Handle action
-                                              break;
-                                            case 'view_reservations':
-                                              // Handle action
-                                              break;
-                                            case 'add_activities':
-                                              // Handle action
-                                              break;
                                             case 'add_reservation':
                                               Navigator.pushReplacement(
                                                 context,
                                                 MaterialPageRoute(
                                                     builder: (context) =>
-                                                        NewReservationScreen()),
+                                                        const NewReservationScreen()),
                                               );
                                               break;
+                                            case 'view_reservations':
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      const ReservationsScreen(),
+                                                ),
+                                              );
+                                              break;
+                                            case 'add_activity':
+                                              // Handle Add Activity
+                                              break;
+                                            case 'view_activities':
+                                              // Handle View Activities
+                                              break;
                                             case 'mark_lost':
-                                              // Handle action
+                                              // Handle Mark as Lost
                                               break;
                                           }
                                         },
@@ -732,58 +773,48 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                           borderRadius:
                                               BorderRadius.circular(10),
                                         ),
-                                        itemBuilder: (BuildContext context) {
-                                          if (stage == "Expired" ||
-                                              stage == "Lost") {
-                                            // Show only limited options
-                                            return [
-                                              const PopupMenuItem(
-                                                  value: 'view_activities',
-                                                  child:
-                                                      Text('View Activities')),
-                                              const PopupMenuItem(
-                                                  value: 'view_reservations',
-                                                  child: Text(
-                                                      'View Reservations')),
-                                            ];
-                                          } else {
-                                            // Show all options
-                                            return [
-                                              const PopupMenuItem(
-                                                  value: 'view_activities',
-                                                  child:
-                                                      Text('View Activities')),
-                                              const PopupMenuItem(
-                                                  value: 'view_reservations',
-                                                  child: Text(
-                                                      'View Reservations')),
-                                              const PopupMenuItem(
-                                                  value: 'add_activities',
-                                                  child: Text('Add Activity')),
-                                              const PopupMenuItem(
-                                                  value: 'add_reservation',
-                                                  child:
-                                                      Text('Add Reservation')),
-                                              const PopupMenuItem(
-                                                  value: 'mark_lost',
-                                                  child: Text('Mark as Lost')),
-                                            ];
-                                          }
-                                        },
+                                        itemBuilder: (BuildContext context) => [
+                                          PopupMenuItem(
+                                            value: 'add_reservation',
+                                            enabled: !isInactiveStage,
+                                            child:
+                                                const Text('Add Reservation'),
+                                          ),
+                                          const PopupMenuItem(
+                                            value: 'view_reservations',
+                                            child: Text('View Reservations'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'add_activity',
+                                            enabled: !isInactiveStage,
+                                            child: const Text('Add Activity'),
+                                          ),
+                                          const PopupMenuItem(
+                                            value: 'view_activities',
+                                            child: Text('View Activities'),
+                                          ),
+                                          PopupMenuItem(
+                                            value: 'mark_lost',
+                                            enabled: !isInactiveStage,
+                                            child: Container(
+                                              color:
+                                                  Colors.red.withOpacity(0.1),
+                                              padding: const EdgeInsets.all(5),
+                                              child: const Text(
+                                                'Mark as Lost',
+                                                style: TextStyle(
+                                                    color: Colors.red),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                         child: Container(
                                           decoration: BoxDecoration(
-                                            color: const Color(0xff84A441),
+                                            color: isInactiveStage
+                                                ? Colors.grey
+                                                : const Color(0xff84A441),
                                             borderRadius:
                                                 BorderRadius.circular(7.33),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black
-                                                    .withOpacity(0.3),
-                                                spreadRadius: 2,
-                                                blurRadius: 5,
-                                                offset: const Offset(0, 3),
-                                              ),
-                                            ],
                                           ),
                                           width: 116,
                                           height: 52,
@@ -820,7 +851,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                       ),
                                       child: TextField(
                                         controller: nameController,
-                                        enabled: isEditable,
+                                        enabled: isReservationStage,
                                         decoration: const InputDecoration(
                                           border: InputBorder.none,
                                           contentPadding: EdgeInsets.symmetric(
@@ -965,9 +996,17 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                                   ),
                                                 ),
                                                 GestureDetector(
-                                                  onTap: () => setState(() =>
-                                                      phoneNumbers
-                                                          .remove(number)),
+                                                  onTap: () {
+                                                    if (phoneNumbers.length >
+                                                        1) {
+                                                      setState(() =>
+                                                          phoneNumbers
+                                                              .remove(number));
+                                                    } else {
+                                                      showErrorDialog(
+                                                          "At least one phone number is required.");
+                                                    }
+                                                  },
                                                   child: Container(
                                                     decoration: BoxDecoration(
                                                       color: Colors.black,
@@ -1084,9 +1123,14 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                         MainAxisAlignment.spaceEvenly,
                                     children: [
                                       _actionButton(
-                                          "Save",
-                                          const Color(0xff84A441),
-                                          updatePipelineDetail),
+                                        "Save",
+                                        isInactiveStage
+                                            ? Colors.grey
+                                            : const Color(0xff84A441),
+                                        isInactiveStage
+                                            ? null
+                                            : updatePipelineDetail,
+                                      ),
                                       _actionButton(
                                         "Cancel",
                                         const Color(0xff000000)
@@ -1124,7 +1168,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     );
   }
 
-  Widget _actionButton(String label, Color color, VoidCallback onPressed) {
+  Widget _actionButton(String label, Color color, VoidCallback? onPressed) {
     return SizedBox(
       width: 129,
       height: 54,

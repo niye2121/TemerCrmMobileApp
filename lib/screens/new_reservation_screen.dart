@@ -1,8 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/screens/pipeline_screen.dart';
 import 'package:temer/services/api_service.dart';
+import 'package:file_picker/file_picker.dart';
 
 class NewReservationScreen extends StatefulWidget {
   const NewReservationScreen({super.key});
@@ -13,124 +18,124 @@ class NewReservationScreen extends StatefulWidget {
 }
 
 class _NewReservationScreenState extends State<NewReservationScreen> {
+  String? requestLetterBase64;
+  String? paymentReceiptsBase64;
   final _formKey = GlobalKey<FormState>();
   final TextEditingController endDateController = TextEditingController();
-  // String? selectedSite;
-  List<String> selectedSites = [];
-  String? selectedSource;
-  List<Map<String, dynamic>> sites = [];
-  List<Map<String, dynamic>> sources = [];
-  bool isLoading = false;
-  final int maxAllowedSites = 3;
+  String? selectedProperty;
+  String? selectedReservationType;
+  List<Map<String, dynamic>> properties = [];
+  List<Map<String, dynamic>> reservationTypes = [];
+  List<Map<String, String>> payments = [];
+  bool isLoading = true;
+  bool paymentRequired = false;
+  Map<String, dynamic>? selectedReservation;
+  List<Map<String, dynamic>> banks = [];
+  List<Map<String, dynamic>> documentTypes = [];
 
   @override
   void initState() {
     super.initState();
-    fetchDropdownData();
+    fetchData();
   }
 
-  void _showMultiSelectDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          content: StatefulBuilder(
-            builder: (BuildContext context, StateSetter setDialogState) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height *
-                        0.6, // Limit height
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        height: MediaQuery.of(context).size.height *
-                            0.4, // Ensure list is scrollable
-                        child: ListView(
-                          shrinkWrap: true,
-                          children: sites.map((site) {
-                            return CheckboxListTile(
-                              value: selectedSites.contains(site["name"]),
-                              title: Text(
-                                site["name"],
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              onChanged: (bool? newValue) {
-                                setDialogState(() {
-                                  if (newValue == true) {
-                                    selectedSites.add(site["name"]);
-                                  } else {
-                                    selectedSites.remove(site["name"]);
-                                  }
-                                });
-                              },
-                              controlAffinity: ListTileControlAffinity
-                                  .leading, // Checkbox to the left
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xff84A441),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(7.33),
-                              ),
-                            ),
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            child: const Text("Ok",
-                                style: TextStyle(color: Colors.white)),
-                          ),
-                          const SizedBox(width: 10),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xffA47341),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(7.33),
-                              ),
-                            ),
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            child: const Text("Cancel",
-                                style: TextStyle(color: Colors.white)),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
+  Future<void> fetchData() async {
+    setState(() => isLoading = true);
 
-  Future<void> fetchDropdownData() async {
     try {
-      sites = await ApiService().fetchSitesData();
-      sources = await ApiService().fetchSourceData();
+      final propertiesData = await ApiService().fetchPropertiesData();
+      final reservationData = await ApiService().fetchReservationTypes();
+      final banksData = await ApiService().fetchBanks();
+      final documentTypesData = await ApiService().fetchDocumentTypes();
 
-      for (var site in sites) {
-        site["selected"] = site["selected"] ?? false;
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      List<String>? registeredSites = prefs.getStringList("registered_sites");
+
+      if (registeredSites != null) {
+        properties = propertiesData
+            .where((prop) =>
+                prop.containsKey("site") &&
+                registeredSites.contains(prop["site"].toString()))
+            .toList();
+      } else {
+        properties = [];
       }
 
-      setState(() {});
+      banks = banksData;
+
+      debugPrint('banks updated: $banks');
+
+      documentTypes = documentTypesData;
+      reservationTypes = reservationData;
     } catch (e) {
       debugPrint("Error fetching data: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error loading data: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  void onReservationTypeChanged(String? value) {
+    setState(() {
+      selectedReservationType = value;
+
+      selectedReservation = reservationTypes.firstWhere(
+        (type) => type["name"] == value,
+        orElse: () => {},
+      );
+
+      if (selectedReservation != null) {
+        paymentRequired = selectedReservation!["is_payment_required"];
+      } else {
+        paymentRequired = false;
+      }
+      calculateEndDate();
+    });
+
+    debugPrint('Selected Reservation Type: $selectedReservationType');
+    debugPrint('Reservation Type: ${selectedReservation?["reservation_type"]}');
+    debugPrint('Payment Required: $paymentRequired');
+  }
+
+  void calculateEndDate() {
+    if (selectedReservationType != null) {
+      var selectedType = reservationTypes.firstWhere(
+        (type) => type["name"] == selectedReservationType,
+        orElse: () => {},
+      );
+
+      int duration = selectedType["duration"];
+      String durationIn = selectedType["duration_in"];
+
+      DateTime startDate = DateTime.now();
+      DateTime endDate = startDate;
+
+      if (durationIn == "days") {
+        int daysAdded = 0;
+
+        while (daysAdded < duration) {
+          endDate = endDate.add(const Duration(days: 1));
+
+          // Skip Sundays (weekday == 7)
+          if (endDate.weekday != DateTime.sunday) {
+            daysAdded++;
+          }
+        }
+      } else if (durationIn == "hours") {
+        endDate = startDate.add(Duration(hours: duration));
+      } else {
+        endDate = startDate;
+      }
+
+      setState(() {
+        endDateController.text =
+            "${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')} "
+            "${endDate.hour.toString().padLeft(2, '0')}:${endDate.minute.toString().padLeft(2, '0')}";
+      });
     }
   }
 
@@ -197,205 +202,373 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
     );
   }
 
+  void createReservation() async {
+    if (_formKey.currentState!.validate()) {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      int? partnerId = prefs.getInt("partner_id");
+
+      int? propertyId = properties.firstWhere(
+          (prop) => prop['name'] == selectedProperty,
+          orElse: () => {})['id'];
+      int? reservationTypeId = reservationTypes.firstWhere(
+          (type) => type['name'] == selectedReservationType,
+          orElse: () => {})['id'];
+
+      if (propertyId == null || reservationTypeId == null) {
+        showErrorDialog("Invalid property or reservation type selection.");
+        return;
+      }
+
+      if (paymentReceiptsBase64 == null || paymentReceiptsBase64!.isEmpty) {
+        print("Error: No payment receipt data provided.");
+      }
+
+      debugPrint('banks in create reservation: $banks');
+
+      Map<String, dynamic> reservationData = {
+        "property_id": propertyId,
+        "partner_id": partnerId,
+        "reservation_type_id": reservationTypeId,
+        "expire_date": endDateController.text,
+        if (requestLetterBase64 != null)
+          "request_letter": requestLetterBase64, // ✅ Correct way
+        "payment_line_ids": payments
+            .map((payment) => {
+                  "document_type_id": documentTypes.firstWhere(
+                    (doc) => doc["name"] == payment["document_type"],
+                    orElse: () => {"id": 0},
+                  )["id"],
+                  "bank_id": banks.firstWhere(
+                      (bank) =>
+                          bank["bank"].trim().toLowerCase() ==
+                          payment["bank_name"]!.trim().toLowerCase(),
+                      orElse: () {
+                    debugPrint(
+                        "No matching bank found for '${payment['bank_name']}'");
+                    return {"id": 0}; // Default to 0 if not found
+                  })["id"],
+                  "payment_receipt": payment["payment_receipt"],
+                  "ref_number": payment['reference_number'],
+                  "transaction_date": payment['date'],
+                  "amount": int.parse(payment['amount']!),
+                  "is_verified": false,
+                })
+            .toList(),
+      };
+
+      // Show loading indicator
+      setState(() => isLoading = true);
+
+      // Check before sending request
+      if (paymentReceiptsBase64 != null &&
+          !isValidBase64(paymentReceiptsBase64!)) {
+        print("Invalid Base64 format for payment receipt!");
+      }
+
+      // Call API service
+      Map<String, dynamic> response =
+          await ApiService().createReservation(reservationData);
+
+      setState(() => isLoading = false);
+
+      if (response.containsKey("error")) {
+        showErrorDialog(response["error"]);
+      } else {
+        showSuccessDialog("Reservation created successfully!");
+      }
+    }
+  }
+
+  Future<void> _pickFile(bool isPaymentReceipt) async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'png', 'pdf'],
+      withData: false,
+    );
+
+    if (result == null ||
+        result.files.isEmpty ||
+        result.files.single.path == null) {
+      debugPrint("No file selected or invalid path");
+      return;
+    }
+
+    try {
+      File file = File(result.files.single.path!);
+      List<int> fileBytes = await file.readAsBytes();
+
+      // First Base64 encoding
+      String firstBase64 = base64Encode(fileBytes);
+      debugPrint(
+          "First Base64 Encoded (Preview): ${firstBase64.substring(0, 50)}...");
+
+      // Second Base64 encoding
+      String doubleEncodedBase64 = base64Encode(utf8.encode(firstBase64));
+      debugPrint(
+          "Second Base64 Encoded (Preview): ${doubleEncodedBase64.substring(0, 50)}...");
+
+      setState(() {
+        if (isPaymentReceipt) {
+          paymentReceiptsBase64 = doubleEncodedBase64;
+        } else {
+          requestLetterBase64 = doubleEncodedBase64;
+        }
+      });
+
+      debugPrint("Successfully set double Base64 encoded string.");
+    } catch (e) {
+      debugPrint("Error encoding file: $e");
+    }
+  }
+
+  String cleanBase64(String base64String) {
+    return base64String
+        .replaceAll('"', '')
+        .replaceAll('\n', '')
+        .replaceAll('\r', '')
+        .trim();
+  }
+
+  bool isValidBase64(String str) {
+    final RegExp base64Regex = RegExp(r'^[A-Za-z0-9+/]*={0,2}$');
+    return str.length % 4 == 0 && base64Regex.hasMatch(str);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final double screenWidth = MediaQuery.of(context).size.width;
     return Scaffold(
       backgroundColor: Colors.grey[200],
-      body: Stack(
-        children: [
-          Positioned(
-            left: -130,
-            top: -140,
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                color: const Color(0xff84A441).withOpacity(0.38),
-                shape: BoxShape.circle,
-              ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : buildReservationForm(),
+    );
+  }
+
+  Widget buildReservationForm() {
+    return Stack(
+      children: [
+        Positioned(
+          left: -130,
+          top: -140,
+          child: Container(
+            width: 250,
+            height: 250,
+            decoration: BoxDecoration(
+              color: const Color(0xff84A441).withOpacity(0.38),
+              shape: BoxShape.circle,
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: SingleChildScrollView(
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 50),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment
-                          .center, // Ensures vertical alignment
-                      children: [
-                        // Apply left padding to the column
-                        const Padding(
-                          padding: EdgeInsets.only(
-                              left: 35.0, top: 20.0), // Adjust padding as needed
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment
-                                .start, // Aligns text to the left within the column
-                            children: [
-                              Text(
-                                "New Reservation",
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(
-                                  height: 5), // Space between the two texts
-                              Text(
-                                "Test-Lead Lycee",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Icons aligned to the right
-                        Row(
+        ),
+        Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 50),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(left: 35.0, top: 20.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.house,
-                                color: Color(0xff84A441),
-                                size: 30,
+                            Text(
+                              "New Reservation",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
                               ),
-                              onPressed: () {
+                            ),
+                            SizedBox(height: 5),
+                            Text(
+                              "Test-Lead Lycee",
+                              style: TextStyle(
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.house,
+                              color: Color(0xff84A441),
+                              size: 30,
+                            ),
+                            onPressed: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const HomeScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.logout,
+                              color: Color(0xff84A441),
+                              size: 30,
+                            ),
+                            onPressed: () async {
+                              try {
+                                await ApiService().logout();
                                 Navigator.pushReplacement(
+                                  // ignore: use_build_context_synchronously
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const HomeScreen(),
+                                    builder: (context) => const LoginScreen(),
                                   ),
                                 );
-                              },
+                              } catch (e) {
+                                // ignore: use_build_context_synchronously
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Logout failed: $e")),
+                                );
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 60),
+                  _buildDropdownField(
+                      "Property",
+                      properties
+                          .map((prop) => prop['name'].toString())
+                          .toList(),
+                      selectedProperty, (value) {
+                    setState(() {
+                      selectedProperty = value;
+                    });
+                  }, width: 293),
+                  const SizedBox(height: 15),
+                  _buildDropdownField(
+                      "Reservation Type",
+                      reservationTypes
+                          .map((type) => type['name'].toString())
+                          .toList(),
+                      selectedReservationType,
+                      onReservationTypeChanged,
+                      width: 293),
+                  const SizedBox(height: 15),
+                  _buildDisabledField("End Date:", endDateController),
+                  if (paymentRequired) ...[
+                    const SizedBox(height: 15),
+                    if (selectedReservation?["reservation_type"] ==
+                        "special") ...[
+                      // Display the Request Letter Button
+                      Container(
+                        width: 200,
+                        child: ElevatedButton(
+                          onPressed: () => _pickFile(false),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xff84A441),
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.logout,
-                                color: Color(0xff84A441),
-                                size: 30,
-                              ),
-                              onPressed: () async {
-                                try {
-                                  await ApiService().logout();
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const LoginScreen(),
-                                    ),
-                                  );
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                        content: Text("Logout failed: $e")),
-                                  );
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 60),
-                    _buildDropdownField(
-                        "Property",
-                        sources
-                            .map((source) => source['name'].toString())
-                            .toList(),
-                        selectedSource, (value) {
-                      setState(() {
-                        selectedSource = value;
-                      });
-                    }, width: 293),
-                    const SizedBox(height: 10),
-                    _buildDropdownField(
-                        "Reservation Type",
-                        sources
-                            .map((source) => source['name'].toString())
-                            .toList(),
-                        selectedSource, (value) {
-                      setState(() {
-                        selectedSource = value;
-                      });
-                    }, width: 293),
-                    const SizedBox(height: 10),
-                    _buildDisabledField("End Date:", endDateController),
-                    const SizedBox(height: 10),
-                    GestureDetector(
-                      onTap: _showMultiSelectDialog,
-                      child: Container(
-                        width: 293,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 15),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
-                              offset: const Offset(4, 4),
-                              blurRadius: 6,
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          selectedSites.isEmpty
-                              ? "Site"
-                              : selectedSites.join(", "),
-                          style: const TextStyle(color: Colors.black),
+                          ),
+                          child: const Text("Request Letter",
+                              style: TextStyle(color: Colors.white)),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    _buildDropdownField(
-                        "Source",
-                        sources
-                            .map((source) => source['name'].toString())
-                            .toList(),
-                        selectedSource, (value) {
-                      setState(() {
-                        selectedSource = value;
-                      });
-                    }, width: 293),
-                    const SizedBox(height: 30),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildButton("Save", const Color(0xff84A441),
-                            screenWidth * 0.4, () {}),
-                        const SizedBox(width: 10),
-                        _buildButton(
-                            "Cancel",
-                            const Color(0xff000000).withOpacity(0.37),
-                            screenWidth * 0.4, () {
-                          Navigator.pop(context);
-                        }),
-                      ],
-                    ),
-                    const SizedBox(height: 215),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 20.0),
-                      child: Text(
-                        "Powered by Ahadubit Technologies",
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    // Display the Add Payment Button
+                    _buildButton(
+                      "Add Payment",
+                      const Color(0xff84A441),
+                      200,
+                      49,
+                      () {
+                        debugPrint("Add Payment Clicked");
+                        showPaymentPopup(context, () {
+                          setState(() {});
+                        });
+                      },
                     ),
                   ],
-                ),
+                  // Scrollable Payment List
+                  if (payments.isNotEmpty)
+                    SizedBox(
+                      height: 150, // Adjust height as needed
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: payments.length,
+                        itemBuilder: (context, index) {
+                          final payment = payments[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(vertical: 5),
+                            elevation: 3,
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Bank: ${payment['bank_name']}",
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  Text("Acct No: ${payment['account_number']}"),
+                                  Text("Doc: ${payment['document_type']}"),
+                                  Text("Ref: ${payment['reference_number']}"),
+                                  Text("Date: ${payment['date']}"),
+                                  Text(
+                                    "Amount: ${payment['amount']}",
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 30),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildButton("Save", const Color(0xff84A441), 129, 54,
+                          createReservation),
+                      const SizedBox(width: 10),
+                      _buildButton(
+                          "Cancel",
+                          const Color(0xff000000).withOpacity(0.37),
+                          129,
+                          54, () {
+                        Navigator.pop(context);
+                      }),
+                    ],
+                  ),
+                  const SizedBox(height: 215),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20.0),
+                    child: Text(
+                      "Powered by Ahadubit Technologies",
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -420,7 +593,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
       ),
       child: SizedBox(
         width: width,
-        height: 49,
+        height: 52,
         child: DropdownButtonFormField<String>(
           value: selectedValue,
           decoration: InputDecoration(
@@ -456,26 +629,10 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
   }
 
   Widget _buildDisabledField(String label, TextEditingController controller) {
-  return GestureDetector(
-    onTap: () async {
-      DateTime? pickedDate = await showDatePicker(
-        context: context,
-        initialDate: DateTime.now(),
-        firstDate: DateTime.now(), // Only allow future dates
-        lastDate: DateTime(2100),
-      );
-
-      if (pickedDate != null) {
-        setState(() {
-          controller.text = pickedDate.toLocal().toString().split(' ')[0];
-        });
-      }
-    },
-    child: Container(
+    return Container(
       width: 293,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
       decoration: BoxDecoration(
-        color: Colors.grey[400],
+        color: const Color(0xffD9D9D9),
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
@@ -485,19 +642,25 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
           ),
         ],
       ),
-      child: Text(
-        controller.text.isEmpty ? label : controller.text,
-        style: const TextStyle(color: Colors.black),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              controller.text.isEmpty ? label : controller.text,
+              style: const TextStyle(fontSize: 16, color: Colors.black),
+            ),
+          ),
+        ],
       ),
-    ),
-  );
-}
+    );
+  }
 
-  Widget _buildButton(
-      String text, Color color, double width, VoidCallback onPressed) {
+  Widget _buildButton(String text, Color color, double width, double height,
+      VoidCallback onPressed) {
     return SizedBox(
       width: width,
-      height: 50,
+      height: height,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
@@ -510,6 +673,356 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                 color: Colors.white,
                 fontSize: 14.29,
                 fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  void showPaymentPopup(
+      BuildContext context, VoidCallback refreshReservations) async {
+    String? selectedBank;
+    String? selectedDocument;
+    List<DropdownMenuItem<String>> bankItems = [];
+    List<DropdownMenuItem<String>> documentTypeItems = [];
+    TextEditingController referenceController = TextEditingController();
+    TextEditingController dateController = TextEditingController();
+    TextEditingController amountController = TextEditingController();
+
+    Map<String, String?> errorMessages = {
+      "bank": null,
+      "document": null,
+      "reference": null,
+      "date": null,
+      "amount": null,
+    };
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
+
+    try {
+      // Fetch both banks and document types
+      banks = await ApiService().fetchBanks();
+      documentTypes = await ApiService().fetchDocumentTypes();
+
+      bankItems = banks.map((bank) {
+        return DropdownMenuItem<String>(
+          value: bank["id"].toString(),
+          child: Text(bank["bank"] ?? "Unknown"),
+        );
+      }).toList();
+
+      documentTypeItems = documentTypes.map((doc) {
+        return DropdownMenuItem<String>(
+          value: doc["id"].toString(),
+          child: Text(doc["name"] ?? "Unknown"),
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint("Error fetching data: $e");
+      // ignore: use_build_context_synchronously
+      Navigator.of(context).pop();
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error loading data")),
+      );
+      return;
+    }
+
+    // ignore: use_build_context_synchronously
+    Navigator.of(context).pop();
+
+    showDialog(
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              child: Stack(
+                children: [
+                  Container(
+                    width: 353,
+                    height: 825,
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xffd9d9d9).withOpacity(0.88),
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Align(
+                            alignment: Alignment.topRight,
+                            child: IconButton(
+                              icon:
+                                  const Icon(Icons.close, color: Colors.black),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _buildDropdown(
+                            value: selectedBank,
+                            items: bankItems,
+                            onChanged: (value) {
+                              setState(() {
+                                selectedBank = value;
+                              });
+                            },
+                            placeholder: "Bank",
+                          ),
+                          const SizedBox(height: 10),
+                          _buildDropdown(
+                            value: selectedDocument,
+                            items: documentTypeItems,
+                            onChanged: (value) {
+                              setState(() {
+                                selectedDocument = value;
+                              });
+                            },
+                            placeholder: "Document Type",
+                          ),
+                          const SizedBox(height: 10),
+                          _buildTextField(
+                              controller: referenceController,
+                              placeholder: "Ref No"),
+                          const SizedBox(height: 10),
+                          _buildDatePickerField(context, dateController),
+                          const SizedBox(height: 10),
+                          _buildTextField(
+                              controller: amountController,
+                              placeholder: "Amount",
+                              isNumeric: true),
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: () => _pickFile(true),
+                            label: const Text("Upload Payment Receipt",
+                                style: TextStyle(color: Colors.white)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xff84A441),
+                              minimumSize: const Size(double.infinity, 50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            icon: const Icon(Icons.upload, color: Colors.white),
+                          ),
+                          const SizedBox(height: 50),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      errorMessages["bank"] =
+                                          selectedBank == null
+                                              ? "Please select a bank"
+                                              : null;
+                                      errorMessages["document"] =
+                                          selectedDocument == null
+                                              ? "Please select a document type"
+                                              : null;
+                                      errorMessages["reference"] =
+                                          referenceController.text.isEmpty
+                                              ? "Reference number is required"
+                                              : null;
+                                      errorMessages["date"] =
+                                          dateController.text.isEmpty
+                                              ? "Date is required"
+                                              : null;
+                                      errorMessages["amount"] =
+                                          amountController.text.isEmpty
+                                              ? "Amount is required"
+                                              : null;
+                                    });
+
+                                    if (errorMessages.values
+                                        .every((e) => e == null)) {
+                                      // Find the correct bank data
+                                      var bankData = banks.firstWhere(
+                                          (bank) =>
+                                              bank["id"].toString() ==
+                                              selectedBank,
+                                          orElse: () => {});
+                                      String bankName =
+                                          bankData["bank"].toString();
+                                      String accountNumber =
+                                          bankData["account_number"] ?? "N/A";
+
+                                      // Find the correct document type name
+                                      var documentData =
+                                          documentTypes.firstWhere(
+                                              (doc) =>
+                                                  doc["id"].toString() ==
+                                                  selectedDocument,
+                                              orElse: () => {});
+                                      String documentTypeName =
+                                          documentData["name"] ?? "Unknown";
+
+                                      payments.add({
+                                        "bank_name": bankName,
+                                        "account_number": accountNumber,
+                                        "document_type": documentTypeName,
+                                        "payment_receipt":
+                                            paymentReceiptsBase64!,
+                                        "reference_number":
+                                            referenceController.text,
+                                        "date": dateController.text,
+                                        "amount": amountController.text,
+                                      });
+
+                                      // Close the popup
+                                      Navigator.of(context).pop();
+
+                                      // Refresh reservations list
+                                      refreshReservations();
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xff84A441),
+                                    minimumSize:
+                                        const Size(double.infinity, 50),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Text("Save",
+                                      style: TextStyle(color: Colors.white)),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.grey,
+                                    minimumSize:
+                                        const Size(double.infinity, 50),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: Text("Cancel",
+                                      style: TextStyle(
+                                          color: const Color(0xff000000)
+                                              .withOpacity(0.37))),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDropdown({
+    required List<DropdownMenuItem<String>> items,
+    required void Function(String?) onChanged,
+    String? value,
+    required String placeholder,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: SizedBox(
+        width: 293,
+        height: 52,
+        child: DropdownButtonFormField<String>(
+          value: value,
+          decoration: InputDecoration(
+            hintText: placeholder,
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          items: items,
+          onChanged: onChanged,
+          isExpanded: true,
+          dropdownColor: Colors.white,
+          menuMaxHeight: 250,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+      {required String placeholder,
+      required TextEditingController controller,
+      bool isNumeric = false}) {
+    return Container(
+      width: 293,
+      height: 49,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: TextField(
+        controller: controller,
+        decoration: InputDecoration(
+          hintText: placeholder,
+          border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        ),
+        keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
+      ),
+    );
+  }
+
+  Widget _buildDatePickerField(
+      BuildContext context, TextEditingController controller) {
+    return Container(
+      width: 293,
+      height: 49,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: TextField(
+        controller: controller,
+        readOnly: true,
+        decoration: const InputDecoration(
+          hintText: "Transaction Date",
+          suffixIcon: Icon(Icons.calendar_today),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        ),
+        onTap: () async {
+          DateTime? pickedDate = await showDatePicker(
+            context: context,
+            initialDate: DateTime.now(),
+            firstDate: DateTime(2000),
+            lastDate: DateTime(2101),
+          );
+          if (pickedDate != null) {
+            String formattedDate =
+                "${pickedDate.year}-${pickedDate.month}-${pickedDate.day}";
+            controller.text = formattedDate;
+          }
+        },
       ),
     );
   }

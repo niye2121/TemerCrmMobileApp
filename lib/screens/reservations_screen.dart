@@ -4,7 +4,9 @@ import 'package:temer/screens/login_screen.dart';
 import 'package:temer/services/api_service.dart';
 
 class ReservationsScreen extends StatefulWidget {
-  const ReservationsScreen({super.key});
+  final List<Map<String, dynamic>>? reservations;
+
+  const ReservationsScreen({super.key, this.reservations});
 
   @override
   // ignore: library_private_types_in_public_api
@@ -23,7 +25,13 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
   @override
   void initState() {
     super.initState();
-    fetchReservationData();
+    if (widget.reservations != null) {
+      data = widget.reservations!;
+      filteredReservations = data;
+      isLoading = false;
+    } else {
+      fetchReservationData();
+    }
   }
 
   Future<void> fetchReservationData() async {
@@ -44,22 +52,22 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
   }
 
   void filterReservation() {
-  setState(() {
-    filteredReservations = data.where((reservation) {
-      bool matchesSearch = reservation.values
-          .toString()
-          .toLowerCase()
-          .contains(searchQuery.toLowerCase());
+    setState(() {
+      filteredReservations = data.where((reservation) {
+        bool matchesSearch = reservation.values
+            .toString()
+            .toLowerCase()
+            .contains(searchQuery.toLowerCase());
 
-      bool matchesFilter = selectedFilter.isEmpty || 
-          reservation["status"] == selectedFilter;
+        bool matchesFilter =
+            selectedFilter.isEmpty || reservation["status"] == selectedFilter;
 
-      return matchesSearch && matchesFilter;
-    }).toList();
-  });
-}
+        return matchesSearch && matchesFilter;
+      }).toList();
+    });
+  }
 
-String formatStatus(String status) {
+  String formatStatus(String status) {
     return status
         .split('_') // Split by underscore
         .map((word) =>
@@ -69,32 +77,32 @@ String formatStatus(String status) {
   }
 
   void groupByReservation(String key) {
-  setState(() {
-    selectedGroupBy = key;
-    if (key.isNotEmpty) {
-      filteredReservations.sort((a, b) {
-        return (a[key] ?? '').toString().compareTo((b[key] ?? '').toString());
-      });
-    }
-  });
-}
+    setState(() {
+      selectedGroupBy = key;
+      if (key.isNotEmpty) {
+        filteredReservations.sort((a, b) {
+          return (a[key] ?? '').toString().compareTo((b[key] ?? '').toString());
+        });
+      }
+    });
+  }
 
   Color _getStatusColor(String status) {
     switch (status) {
       case 'requested':
-        return const Color(0xff84A441);
+        return const Color(0xff000000).withOpacity(0.29);
       case 'reserved':
-        return const Color(0xff84A441);
+        return const Color(0xff617C28).withOpacity(0.42);
       case 'pending_sales':
-        return const Color(0xffE29609).withOpacity(0.66);
+        return const Color(0xff617C28).withOpacity(0.42);
       case 'draft':
-        return const Color(0xffA15E1A).withOpacity(0.66);
+        return const Color(0xff000000).withOpacity(0.28);
       case 'expired':
-        return const Color(0xffFF3131).withOpacity(0.28);
+        return const Color(0xffFF3131).withOpacity(0.4);
       case 'canceled':
-        return const Color(0xffFF3131).withOpacity(0.5);
+        return const Color(0xffFF3131).withOpacity(0.3);
       default:
-        return Colors.black;
+        return Colors.black.withOpacity(0.2);
     }
   }
 
@@ -177,29 +185,17 @@ String formatStatus(String status) {
                 const SizedBox(height: 10),
                 _buildSearchAndFilter(),
                 const SizedBox(height: 10),
-                
-                Stack(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12, horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF84A441),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _tableHeaderText("Property"),
-                          _tableHeaderText("Customer"),
-                          _tableHeaderText("Type"),
-                          _tableHeaderText("End Date"),
-                          _tableHeaderText("Status"),
-                        ],
-                      ),
-                    ),
-                  ],
+                // Green Horizontal Bar
+                Container(
+                  height: 25, // Adjust height as needed
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xff84A441).withOpacity(0.29),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
+                const SizedBox(height: 10),
+
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -225,136 +221,199 @@ String formatStatus(String status) {
     );
   }
 
- Widget _buildReservationCard(Map<String, dynamic> reservation) {
-  return GestureDetector(
-    child: Container(
-      width: double.infinity,
-      height: 60, // Increased height for better layout
-      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 6,
-            spreadRadius: 1,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              reservation["property"]?["name"] ?? "N/A",
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              reservation["customer"]?["name"] ?? "N/A",
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              reservation["reservation_type"]?["name"] ?? "N/A",
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              reservation["expire_date"] ?? "N/A",
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              formatStatus(reservation["status"]),
+  Widget _buildReservationCard(Map<String, dynamic> reservation) {
+  return Container(
+    padding: const EdgeInsets.all(12),
+    margin: const EdgeInsets.symmetric(vertical: 5),
+    height: 120, // Adjusted height for better spacing
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.2),
+          blurRadius: 4,
+          spreadRadius: 1,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // First Row: Property
+        Row(
+          children: [
+            const Text(
+              "Property: ",
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: _getStatusColor(reservation["status"] ?? ""),
+                color: Colors.black,
               ),
             ),
-          ),
-        ],
-      ),
+            Expanded(
+              child: Text(
+                reservation["property"]?["name"] ?? "N/A",
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
+
+        // Second Row: Customer and Type
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Customer
+            Row(
+              children: [
+                const Text(
+                  "Customer: ",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                Text(
+                  reservation["customer"]?["name"] ?? "N/A",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+            // Type
+            Row(
+              children: [
+                const Text(
+                  "Type: ",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                Text(
+                  reservation["reservation_type"]?["name"] ?? "N/A",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
+
+        // Third Row: Status and End Date
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Status
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(reservation["status"]),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    formatStatus(reservation["status"]),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            Row(
+              children: [
+                const Text(
+                  "End Date: ",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                Text(
+                  reservation["expire_date"] ?? "N/A",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.black,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
     ),
   );
 }
 
 
-
   Widget _buildGroupedView() {
-  if (selectedGroupBy.isEmpty) {
-    return ListView.builder(
-      itemCount: filteredReservations.length,
-      itemBuilder: (context, index) {
-        return _buildReservationCard(filteredReservations[index]);
-      },
-    );
-  } else {
-    Map<String, List<Map<String, dynamic>>> groupedData = {};
+    if (selectedGroupBy.isEmpty) {
+      return ListView.builder(
+        itemCount: filteredReservations.length,
+        itemBuilder: (context, index) {
+          return _buildReservationCard(filteredReservations[index]);
+        },
+      );
+    } else {
+      Map<String, List<Map<String, dynamic>>> groupedData = {};
 
-    for (var reservation in filteredReservations) {
-      String key;
+      for (var reservation in filteredReservations) {
+        String key;
 
-      if (selectedGroupBy.toLowerCase() == "status") {
-        debugPrint('reservation by status');
-        key = reservation["status"] ?? "Unknown";
-      } else if (selectedGroupBy.toLowerCase() == "type") {
-        debugPrint('reservation by type');
-        key = reservation["reservation_type"]["name"] ?? "Unknown";
-      } else {
-        key = "Unknown"; // Default case
+        if (selectedGroupBy.toLowerCase() == "status") {
+          debugPrint('reservation by status');
+          key = reservation["status"] ?? "Unknown";
+        } else if (selectedGroupBy.toLowerCase() == "type") {
+          debugPrint('reservation by type');
+          key = reservation["reservation_type"]["name"] ?? "Unknown";
+        } else {
+          key = "Unknown"; // Default case
+        }
+
+        groupedData.putIfAbsent(key, () => []).add(reservation);
       }
 
-      groupedData.putIfAbsent(key, () => []).add(reservation);
+      return ListView(
+        children: groupedData.entries.map((entry) {
+          String groupName = entry.key;
+          List<Map<String, dynamic>> reservations = entry.value;
+          int totalReservations = reservations.length;
+
+          return _buildGroupCard(
+            groupName,
+            totalReservations,
+            reservations,
+            groupedData: groupedData,
+          );
+        }).toList(),
+      );
     }
-
-    return ListView(
-      children: groupedData.entries.map((entry) {
-        String groupName = entry.key;
-        List<Map<String, dynamic>> reservations = entry.value;
-        int totalReservations = reservations.length;
-
-        return _buildGroupCard(
-          groupName,
-          totalReservations,
-          reservations,
-          groupedData: groupedData,
-        );
-      }).toList(),
-    );
   }
-}
 
-
-  Widget _buildGroupCard(
-      String group, int totalReservations, List<Map<String, dynamic>> reservations,
+  Widget _buildGroupCard(String group, int totalReservations,
+      List<Map<String, dynamic>> reservations,
       {required Map<String, List<Map<String, dynamic>>> groupedData}) {
     Color iconColor = _getStatusColor(group);
     IconData iconData = Icons.business_center; // Adjust icon as needed
@@ -415,98 +474,89 @@ String formatStatus(String status) {
     );
   }
 
- Widget _buildSearchAndFilter() {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    child: Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 29,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 5,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value;
-                        filterReservation();
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      hintText: "Search",
-                      border: InputBorder.none,
+  Widget _buildSearchAndFilter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 29,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 5,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      onChanged: (value) {
+                        setState(() {
+                          searchQuery = value;
+                          filterReservation();
+                        });
+                      },
+                      decoration: const InputDecoration(
+                        hintText: "Search",
+                        border: InputBorder.none,
+                      ),
                     ),
                   ),
-                ),
-                const Icon(Icons.search, color: Color(0xFF84A441)),
-              ],
+                  const Icon(Icons.search, color: Color(0xFF84A441)),
+                ],
+              ),
             ),
           ),
-        ),
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.filter_alt, color: Color(0xFF84A441)),
-          onSelected: (value) {
-            setState(() {
-              selectedFilter = value;
-              filterReservation();
-            });
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(value: "", child: Text("All")),
-            const PopupMenuItem(value: "requested", child: Text("Requested")),
-            const PopupMenuItem(value: "reserved", child: Text("Reserved")),
-            const PopupMenuItem(value: "pending_sales", child: Text("Pending Sales")),
-            const PopupMenuItem(value: "draft", child: Text("Draft")),
-            const PopupMenuItem(value: "expired", child: Text("Expired")),
-            const PopupMenuItem(value: "canceled", child: Text("Canceled")),
-          ],
-        ),
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.layers, color: Color(0xFF84A441)),
-          onSelected: (value) {
-            groupByReservation(value == "Status" ? "status" : "type");
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(value: "Status", child: Text("Group by Status")),
-            const PopupMenuItem(value: "Type", child: Text("Group by Type")),
-          ],
-        ),
-        IconButton(
-          icon: const Icon(Icons.refresh, color: Color(0xff84a441)),
-          onPressed: () {
-            setState(() {
-              searchQuery = '';
-              selectedFilter = '';
-              selectedGroupBy = '';
-              filteredReservations = List.from(data);
-            });
-          },
-        ),
-      ],
-    ),
-  );
-}
-
-  Widget _tableHeaderText(String text) {
-    return Expanded(
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.filter_alt, color: Color(0xFF84A441)),
+            onSelected: (value) {
+              setState(() {
+                selectedFilter = value;
+                filterReservation();
+              });
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: "", child: Text("All")),
+              const PopupMenuItem(value: "requested", child: Text("Requested")),
+              const PopupMenuItem(value: "reserved", child: Text("Reserved")),
+              const PopupMenuItem(
+                  value: "pending_sales", child: Text("Pending Sales")),
+              const PopupMenuItem(value: "draft", child: Text("Draft")),
+              const PopupMenuItem(value: "expired", child: Text("Expired")),
+              const PopupMenuItem(value: "canceled", child: Text("Canceled")),
+            ],
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.layers, color: Color(0xFF84A441)),
+            onSelected: (value) {
+              groupByReservation(value == "Status" ? "status" : "type");
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                  value: "Status", child: Text("Group by Status")),
+              const PopupMenuItem(value: "Type", child: Text("Group by Type")),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xff84a441)),
+            onPressed: () {
+              setState(() {
+                searchQuery = '';
+                selectedFilter = '';
+                selectedGroupBy = '';
+                filteredReservations = List.from(data);
+              });
+            },
+          ),
+        ],
       ),
     );
   }

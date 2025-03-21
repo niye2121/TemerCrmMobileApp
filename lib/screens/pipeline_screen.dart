@@ -114,14 +114,10 @@ class _PipelineScreenState extends State<PipelineScreen> {
           groupKey = item["stage"]["name"];
         }
 
-        print("Group Key: $groupKey");
-
         if (groupKey != "Unknown") {
           groupedData.putIfAbsent(groupKey, () => []).add(item);
         }
       }
-
-      print("Grouped Data Keys: ${groupedData.keys.toList()}");
 
       filteredPipelines = groupedData.entries.map((e) {
         return {
@@ -208,11 +204,13 @@ class _PipelineScreenState extends State<PipelineScreen> {
                             try {
                               await ApiService().logout();
                               Navigator.pushReplacement(
+                                // ignore: use_build_context_synchronously
                                 context,
                                 MaterialPageRoute(
                                     builder: (context) => const LoginScreen()),
                               );
                             } catch (e) {
+                              // ignore: use_build_context_synchronously
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text("Logout failed: $e")),
                               );
@@ -337,14 +335,12 @@ class _PipelineScreenState extends State<PipelineScreen> {
                     fontWeight: FontWeight.bold),
               ),
             ),
-            Container(
-              child: Text(
-                pipeline["stage"]["name"] ?? "N/A",
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: _getStageColor(pipeline["stage"]["name"] ?? ""),
-                ),
+            Text(
+              pipeline["stage"]["name"] ?? "N/A",
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: _getStageColor(pipeline["stage"]["name"] ?? ""),
               ),
             ),
           ],
@@ -384,14 +380,10 @@ class _PipelineScreenState extends State<PipelineScreen> {
           }
         }
 
-        print("Grouping Key: $key");
-
         if (key != "Unknown") {
           groupedData.putIfAbsent(key, () => []).add(pipeline);
         }
       }
-
-      print("Final Grouped Data: ${groupedData.keys.toList()}");
 
       return ListView(
         children: groupedData.entries.map((entry) {
@@ -503,7 +495,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
                       ),
                     ),
                   ),
-                  Icon(Icons.search, color: Color(0xFF84A441)),
+                  const Icon(Icons.search, color: Color(0xFF84A441)),
                 ],
               ),
             ),
@@ -568,20 +560,6 @@ class _PipelineScreenState extends State<PipelineScreen> {
         textAlign: TextAlign.center,
         style: const TextStyle(
             color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-      ),
-    );
-  }
-
-  Widget _tableRowText(String text) {
-    return Expanded(
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: _getStageColor(text), // Apply dynamic color
-        ),
       ),
     );
   }

@@ -168,7 +168,6 @@ class _NewPipelineScreenState extends State<NewPipelineScreen> {
       orElse: () => {'id': 0, 'phone_code': ''}, // Default values
     );
     final countryId = country['id'] ?? 0;
-    final phoneCode = country['phone_code'] ?? '';
 
     final source = sources.firstWhere(
       (s) => s['name'] == selectedSource,
@@ -186,7 +185,6 @@ class _NewPipelineScreenState extends State<NewPipelineScreen> {
 
     if (customerName.isEmpty ||
         phoneNo.isEmpty ||
-        selectedCountry == null ||
         selectedSource == null ||
         siteIds.isEmpty) {
       showErrorDialog("All fields are required.");
@@ -248,7 +246,7 @@ class _NewPipelineScreenState extends State<NewPipelineScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Container(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   color: Colors.white,
@@ -284,7 +282,7 @@ class _NewPipelineScreenState extends State<NewPipelineScreen> {
                           });
                         },
                       ),
-                      SizedBox(height: 12),
+                      const SizedBox(height: 12),
 
                       // Country List (🔹 Flexible to avoid overflow)
                       ConstrainedBox(
@@ -736,8 +734,8 @@ class _NewPipelineScreenState extends State<NewPipelineScreen> {
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3), // Black shadow
-            offset: Offset(4, 4), // Shadow at bottom-right corner
+            color: Colors.black.withOpacity(0.3),
+            offset: const Offset(4, 4), // Shadow at bottom-right corner
             blurRadius: 6, // Smooth shadow effect
           ),
         ],
@@ -768,7 +766,7 @@ class _NewPipelineScreenState extends State<NewPipelineScreen> {
           dropdownColor: Colors.white, // Background color of the dropdown
           selectedItemBuilder: (BuildContext context) {
             return items.map((String value) {
-              return Text(value, style: TextStyle(color: Colors.black));
+              return Text(value, style: const TextStyle(color: Colors.black));
             }).toList();
           },
           // Add constraints for max height for dropdown items to make it scrollable

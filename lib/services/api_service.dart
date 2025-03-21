@@ -266,6 +266,8 @@ class ApiService {
       "site_ids": siteIds,
     };
 
+    debugPrint('create lead request to be sent: $requestBody');
+
     final response = await http.post(
       url,
       headers: {
@@ -352,6 +354,181 @@ class ApiService {
       return compute(parseJson, response.body);
     } else {
       throw Exception("Failed to load pipeline data: ${response.statusCode}");
+    }
+  }
+
+  // Fetch reservation details by ID
+  Future<Map<String, dynamic>> fetchReservationDetail(int reservationId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/ReservationDetail?id=$reservationId");
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception(
+          "Failed to load reservation details: ${response.statusCode}");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchReservationsByPipeline(
+      int pipelineId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/ReservationByPipline?id=$pipelineId");
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    debugPrint('fetchReservationByPipeine Response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      // Decode the response and extract the 'data' field
+      final responseData = jsonDecode(response.body);
+
+      // Ensure that 'data' is present and it contains a list
+      if (responseData['data'] is List) {
+        return List<Map<String, dynamic>>.from(responseData['data']);
+      } else {
+        throw Exception(
+            'Expected a list of reservations in the response data.');
+      }
+    } else {
+      throw Exception(
+          "Failed to load reservations by pipeline: ${response.statusCode}");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchMyTransferRequests() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/myTransferRequests");
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+    } else {
+      throw Exception(
+          "Failed to load transfer requests: ${response.statusCode}");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchReservationTypes() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/getReservationType");
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return compute(parseJson, response.body);
+    } else {
+      throw Exception(
+          "Failed to load reservation types: ${response.statusCode}");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchBanks() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/bank");
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+    debugPrint('fetchBanks response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      return compute(parseJson, response.body);
+    } else {
+      throw Exception("Failed to load banks: ${response.statusCode}");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchDocumentTypes() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/documentType");
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    debugPrint('fetchDocumentTypes response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      return compute(parseJson, response.body);
+    } else {
+      throw Exception("Failed to load document types: ${response.statusCode}");
+    }
+  }
+
+  Future<Map<String, dynamic>> createReservation(
+      Map<String, dynamic> reservationData) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/createReservation");
+
+    debugPrint('Reservation to be created: $reservationData');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": "session_id=$sessionId",
+        },
+        body: jsonEncode(reservationData),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          "status": response.statusCode,
+          "error": "Failed to create reservation"
+        };
+      }
+    } catch (e) {
+      return {"status": 500, "error": e.toString()};
     }
   }
 }
