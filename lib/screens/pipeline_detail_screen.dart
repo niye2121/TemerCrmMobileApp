@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temer/screens/home_screen.dart';
@@ -34,6 +32,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
   String phoneNumber = '';
 
   bool isLoading = true;
+  bool isReservationStage = false;
   String errorMessage = '';
   String selectedCountry = 'Ethiopia';
   String selectedPhoneCode = '251';
@@ -41,6 +40,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
   List<Map<String, dynamic>> countries = [];
   List<Map<String, dynamic>> sites = [];
   List<Map<String, dynamic>> sources = [];
+  List<Map<String, dynamic>> pipelineReservations = [];
 
   @override
   void initState() {
@@ -48,6 +48,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     nameController = TextEditingController();
     fetchPipelineDetail();
     fetchDropdownData();
+    fetchReservations();
   }
 
   @override
@@ -63,8 +64,6 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
       countries = await ApiService().fetchCountryData();
       sites = await ApiService().fetchSitesData();
       sources = await ApiService().fetchSourceData();
-
-      debugPrint('sources fetched in the fetchDropDownData: $sources');
 
       for (var site in sites) {
         site["selected"] = site["selected"] ?? false;
@@ -97,17 +96,27 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
           await ApiService().fetchPipelineDetail(int.parse(widget.pipelineId));
       final data = response['data'];
 
-      debugPrint(data.toString());
-
       setState(() {
         nameController.text = data['customer'] ?? '';
         stage = data['stage']?['name'] ?? "N/A";
         debugPrint('stage in fetchPipelineDetail: $stage');
         reservations = data['reservation_count'] ?? 0;
 
-        if (data.containsKey('id')) {
-          int partnerId = data['id']; // Use `id` as `partner_id`
+        isReservationStage = stage == "Reservation";
+
+        if (data.containsKey('partner_id')) {
+          int partnerId = data['partner_id'];
           _savePartnerId(partnerId);
+        }
+
+        if (data.containsKey('id')) {
+          int leadId = data['id'];
+          _saveLeadId(leadId);
+        }
+
+        if (data.containsKey('name')) {
+          String name = data['name'];
+          _saveCustomerName(name);
         }
 
         fetchedPhones = (data['phone'] as List?)
@@ -132,17 +141,11 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
 
         selectedSites = List.from(siteNames);
 
-        debugPrint("Fetched siteNames: $siteNames");
-        debugPrint("Updated selectedSites: $selectedSites");
-
         // Store registered sites in SharedPreferences
         _saveRegisteredSites(siteNames);
 
         if (data.containsKey('source_id')) {
           int sourceId = data['source_id'];
-
-          debugPrint("Fetched source_id: $sourceId");
-          debugPrint("Sources list: ${sources.toString()}");
 
           try {
             var foundSource = sources.firstWhere(
@@ -153,14 +156,15 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
             selectedSource =
                 foundSource.isNotEmpty ? foundSource['name'] : 'Unknown Source';
           } catch (e) {
-            debugPrint("Error finding source: $e");
             selectedSource = 'Unknown Source';
           }
-
-          debugPrint('Selected source: $selectedSource');
         }
 
         isLoading = false;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {});
       });
     } catch (e) {
       setState(() {
@@ -174,7 +178,24 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setInt("partner_id", partnerId);
-      debugPrint("Partner ID saved: $partnerId");
+    } catch (e) {
+      debugPrint("Error saving partner ID: $e");
+    }
+  }
+
+  Future<void> _saveCustomerName(String name) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString("name", name);
+    } catch (e) {
+      debugPrint("Error saving name: $e");
+    }
+  }
+
+  Future<void> _saveLeadId(int leadId) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setInt("lead_id", leadId);
     } catch (e) {
       debugPrint("Error saving partner ID: $e");
     }
@@ -185,7 +206,6 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     try {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setStringList("registered_sites", sites);
-      debugPrint("Registered sites saved: $sites");
     } catch (e) {
       debugPrint("Error saving registered sites: $e");
     }
@@ -199,6 +219,18 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     );
 
     return ethiopia["id"];
+  }
+
+  Future<void> fetchReservations() async {
+    try {
+      final reservations = await ApiService()
+          .fetchReservationsByPipeline(int.parse(widget.pipelineId));
+      setState(() {
+        pipelineReservations = reservations;
+      });
+    } catch (e) {
+      debugPrint("Error fetching reservations: $e");
+    }
   }
 
   Future<void> updatePipelineDetail() async {
@@ -260,8 +292,6 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
         }).toList(),
       };
 
-      debugPrint("Final API Payload: ${jsonEncode(pipelineData)}");
-
       final response = await ApiService().updatePipeline(pipelineData);
 
       if (response["status"] == 200) {
@@ -273,19 +303,18 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
       } else {
         showErrorDialog(response["data"]["message"]);
       }
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-      showErrorDialog("Failed to update pipeline: $e");
+    } catch (error) {
+      debugPrint("Caught Error: $error");
+      if (error is Map<String, dynamic> && error.containsKey("error")) {
+        showErrorDialog(error["error"]);
+      } else {
+        showErrorDialog("Something went wrong. Please try again.");
+      }
     }
   }
 
   void _showMultiSelectDialog() {
     List<String> tempSelectedSites = List.from(selectedSites);
-
-    debugPrint(
-        'Opening MultiSelectDialog with tempSelectedSites: $tempSelectedSites');
 
     showDialog(
       context: context,
@@ -314,20 +343,23 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            onChanged: (bool? newValue) {
-                              setDialogState(() {
-                                if (newValue == true) {
-                                  tempSelectedSites.add(site["name"]);
-                                } else {
-                                  if (tempSelectedSites.length > 1) {
-                                    tempSelectedSites.remove(site["name"]);
-                                  } else {
-                                    showErrorDialog(
-                                        "At least one site must be selected.");
-                                  }
-                                }
-                              });
-                            },
+                            onChanged: isReservationStage
+                                ? null
+                                : (bool? newValue) {
+                                    setDialogState(() {
+                                      if (newValue == true) {
+                                        tempSelectedSites.add(site["name"]);
+                                      } else {
+                                        if (tempSelectedSites.length > 1) {
+                                          tempSelectedSites
+                                              .remove(site["name"]);
+                                        } else {
+                                          showErrorDialog(
+                                              "At least one site must be selected.");
+                                        }
+                                      }
+                                    });
+                                  },
                             controlAffinity: ListTileControlAffinity.leading,
                           );
                         }).toList(),
@@ -550,7 +582,12 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
         content: Text(message, style: const TextStyle(fontSize: 16)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              setState(() {
+                isLoading = false; // Ensure loading stops
+              });
+              Navigator.pop(context); // Close dialog
+            },
             child: const Text("OK",
                 style:
                     TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
@@ -598,8 +635,6 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    bool isReservationStage = stage == "Reservation";
-
     debugPrint('Current stage: $stage');
     debugPrint('isReservationStage: $isReservationStage');
 
@@ -753,10 +788,14 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                                 context,
                                                 MaterialPageRoute(
                                                   builder: (context) =>
-                                                      const ReservationsScreen(),
+                                                      ReservationsScreen(
+                                                    reservations:
+                                                        pipelineReservations,
+                                                  ),
                                                 ),
                                               );
                                               break;
+
                                             case 'add_activity':
                                               // Handle Add Activity
                                               break;
@@ -764,7 +803,8 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                               // Handle View Activities
                                               break;
                                             case 'mark_lost':
-                                              // Handle Mark as Lost
+                                              _showMarkAsLostDialog(
+                                                  int.parse(widget.pipelineId));
                                               break;
                                           }
                                         },
@@ -851,7 +891,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                       ),
                                       child: TextField(
                                         controller: nameController,
-                                        enabled: isReservationStage,
+                                        enabled: !isReservationStage,
                                         decoration: const InputDecoration(
                                           border: InputBorder.none,
                                           contentPadding: EdgeInsets.symmetric(
@@ -923,10 +963,10 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                             child: TextField(
                                               controller: phoneNumberController,
                                               keyboardType: TextInputType.phone,
+                                              enabled: !isReservationStage,
                                               decoration: const InputDecoration(
                                                 hintText: "phone number",
-                                                border: InputBorder
-                                                    .none, // Removes default border
+                                                border: InputBorder.none,
                                                 contentPadding:
                                                     EdgeInsets.symmetric(
                                                         horizontal: 10,
@@ -996,17 +1036,21 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                                   ),
                                                 ),
                                                 GestureDetector(
-                                                  onTap: () {
-                                                    if (phoneNumbers.length >
-                                                        1) {
-                                                      setState(() =>
-                                                          phoneNumbers
-                                                              .remove(number));
-                                                    } else {
-                                                      showErrorDialog(
-                                                          "At least one phone number is required.");
-                                                    }
-                                                  },
+                                                  onTap: isReservationStage
+                                                      ? null
+                                                      : () {
+                                                          if (phoneNumbers
+                                                                  .length >
+                                                              1) {
+                                                            setState(() =>
+                                                                phoneNumbers
+                                                                    .remove(
+                                                                        number));
+                                                          } else {
+                                                            showErrorDialog(
+                                                                "At least one phone number is required.");
+                                                          }
+                                                        },
                                                   child: Container(
                                                     decoration: BoxDecoration(
                                                       color: Colors.black,
@@ -1103,12 +1147,13 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                             child: Text(source['name']),
                                           );
                                         }).toList(),
-                                        onChanged: (value) {
-                                          setState(() {
-                                            selectedSource =
-                                                value!; // Update selectedSource with the name
-                                          });
-                                        },
+                                        onChanged: isReservationStage
+                                            ? null
+                                            : (value) {
+                                                setState(() {
+                                                  selectedSource = value!;
+                                                });
+                                              },
                                         decoration: const InputDecoration(
                                           border: InputBorder.none,
                                           contentPadding: EdgeInsets.symmetric(
@@ -1165,6 +1210,160 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                     ),
                   ],
                 ),
+    );
+  }
+
+  void _showMarkAsLostDialog(int leadId) async {
+    List<Map<String, dynamic>> lostReasons =
+        await ApiService().fetchLostReasons();
+    int? selectedLostReasonId;
+    TextEditingController closingNoteController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 5,
+                      offset: const Offset(2, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Title
+                    const Text(
+                      "Mark as Lost",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xff84A441),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+
+                    // Lost Reason Dropdown
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            // ✅ Fix applied
+                            child: DropdownButtonFormField<int>(
+                              isExpanded: true,
+                              decoration: const InputDecoration(
+                                labelText: "Lost Reason",
+                                border: InputBorder.none,
+                              ),
+                              items: lostReasons.map((reason) {
+                                return DropdownMenuItem<int>(
+                                  value: reason["id"],
+                                  child: Text(
+                                    reason["bank"],
+                                    overflow: TextOverflow
+                                        .ellipsis, // ✅ Prevents long text overflow
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  selectedLostReasonId = value;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    // Closing Note Text Area
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      child: TextField(
+                        controller: closingNoteController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText: "What went wrong?",
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(
+                          child: _actionButton(
+                            "Cancel",
+                            const Color(0xff000000).withOpacity(0.37),
+                            () => Navigator.pop(context),
+                          ),
+                        ),
+                        const SizedBox(width: 10), // Optional spacing
+                        Expanded(
+                          child: _actionButton(
+                            "Mark as Lost",
+                            selectedLostReasonId == null
+                                ? Colors.grey
+                                : const Color(0xff84A441),
+                            selectedLostReasonId == null
+                                ? null
+                                : () async {
+                                    Map<String, dynamic> response =
+                                        await ApiService()
+                                            .markReservationAsLost(
+                                      leadId: leadId,
+                                      lostReasonId: selectedLostReasonId!,
+                                      lostFeedback:
+                                          closingNoteController.text.trim(),
+                                    );
+
+                                    if (response["status"] == 200) {
+                                      Navigator.pop(context);
+                                      showSuccessDialog(
+                                          "Reservation marked as lost.");
+                                    } else {
+                                      showErrorDialog(response["error"]);
+                                    }
+                                  },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

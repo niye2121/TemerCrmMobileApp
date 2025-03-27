@@ -301,9 +301,7 @@ class ApiService {
       List<dynamic> phones = pipelineData["phones"];
       for (var phone in phones) {
         phone["phone"] = phone["phone"].toString();
-
         if (phone.containsKey("id") && phone["id"] != null) {
-          // 🔹 Convert `id` to an integer if it's a valid number
           phone["id"] = int.tryParse(phone["id"].toString()) ?? phone["id"];
         }
       }
@@ -329,11 +327,20 @@ class ApiService {
 
     debugPrint('Response: ${response.body}');
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } else {
-      throw Exception(
-          "Failed to update pipeline: ${response.statusCode}, Response: ${response.body}");
+    try {
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
+
+      // 🔹 Check API-defined status field instead of HTTP statusCode
+      if (response.statusCode == 200 && responseData["status"] == 200) {
+        debugPrint('Pipeline updated successfully.');
+        return responseData;
+      } else {
+        debugPrint("API Error Response: $responseData");
+        return Future.error(responseData);
+      }
+    } catch (e) {
+      debugPrint("Error Parsing Failed: $e");
+      return Future.error({"error": "Failed to parse response."});
     }
   }
 
@@ -357,28 +364,6 @@ class ApiService {
     }
   }
 
-  // Fetch reservation details by ID
-  Future<Map<String, dynamic>> fetchReservationDetail(int reservationId) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? sessionId = prefs.getString("session_id");
-
-    final url = Uri.parse("$baseUrl/api/ReservationDetail?id=$reservationId");
-
-    final response = await http.get(
-      url,
-      headers: {
-        "Content-Type": "application/json",
-        "Cookie": "session_id=$sessionId",
-      },
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } else {
-      throw Exception(
-          "Failed to load reservation details: ${response.statusCode}");
-    }
-  }
 
   Future<List<Map<String, dynamic>>> fetchReservationsByPipeline(
       int pipelineId) async {
@@ -414,6 +399,36 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> fetchReservationDetail(int reservationId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/ReservationDetail?id=$reservationId");
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    debugPrint('fetchReservationDetail Response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final responseData = jsonDecode(response.body);
+
+      if (responseData is Map<String, dynamic>) {
+        return responseData;
+      } else {
+        throw Exception('Unexpected response format. Expected a JSON object.');
+      }
+    } else {
+      throw Exception(
+          "Failed to load reservation detail: ${response.statusCode}");
+    }
+  }
+
   Future<List<Map<String, dynamic>>> fetchMyTransferRequests() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? sessionId = prefs.getString("session_id");
@@ -429,7 +444,15 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      final decodedResponse = jsonDecode(response.body);
+
+      // Ensure 'data' is a list before casting
+      if (decodedResponse is Map<String, dynamic> &&
+          decodedResponse['data'] is List) {
+        return List<Map<String, dynamic>>.from(decodedResponse['data']);
+      } else {
+        throw Exception("Invalid data format from API");
+      }
     } else {
       throw Exception(
           "Failed to load transfer requests: ${response.statusCode}");
@@ -525,6 +548,169 @@ class ApiService {
         return {
           "status": response.statusCode,
           "error": "Failed to create reservation"
+        };
+      }
+    } catch (e) {
+      return {"status": 500, "error": e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> checkAmount(
+      int customerId, int reservationTypeId, int propertyId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse(
+        "$baseUrl/api/checkAmount?customer_id=$customerId&reservation_type_id=$reservationTypeId&property_id=$propertyId");
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": "session_id=$sessionId",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          "status": response.statusCode,
+          "error": "Failed to check amount"
+        };
+      }
+    } catch (e) {
+      return {"status": 500, "error": e.toString()};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchGeneralUpdates() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/general");
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+    debugPrint('fetchGeneralUpdates response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      return compute(parseGeneralUpdates, response.body);
+    } else {
+      throw Exception("Failed to load general updates: ${response.statusCode}");
+    }
+  }
+
+  List<Map<String, dynamic>> parseGeneralUpdates(String responseBody) {
+    final Map<String, dynamic> parsed = json.decode(responseBody);
+    final List<dynamic> dataList = parsed["data"];
+
+    return dataList
+        .map((e) => {
+              "id": e["id"],
+              "message": e["message"],
+              "sender": e["user"]["name"],
+              "date": e["date"],
+            })
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> reserveItem(int reservationTypeId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    if (sessionId == null) {
+      throw Exception("Session ID is missing. Please log in again.");
+    }
+
+    final url = Uri.parse("$baseUrl/api/reserve?id=$reservationTypeId");
+
+    debugPrint("Calling API: $url");
+    debugPrint("Session ID: $sessionId");
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    debugPrint("API Response: ${response.body}");
+
+    final Map<String, dynamic> responseBody = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return compute(parseJson, response.body);
+    } else {
+      String errorMessage =
+          responseBody["error"] ?? "Reservation failed. Please try again.";
+      throw Exception(errorMessage);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchLostReasons() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/lostReasons");
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    debugPrint('fetchLostReasons response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      return compute(parseJson, response.body);
+    } else {
+      throw Exception("Failed to load lost reasons: ${response.statusCode}");
+    }
+  }
+
+  Future<Map<String, dynamic>> markReservationAsLost({
+    required int leadId,
+    required int lostReasonId,
+    required String lostFeedback,
+  }) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/markAsLost");
+    final body = jsonEncode({
+      "lead_id": leadId,
+      "lost_reason_id": lostReasonId,
+      "lost_feedback": lostFeedback,
+    });
+
+    debugPrint('Marking reservation as lost: $body');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": "session_id=$sessionId",
+        },
+        body: body,
+      );
+
+      debugPrint('markReservationAsLost response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          "status": response.statusCode,
+          "error": "Failed to mark reservation as lost"
         };
       }
     } catch (e) {

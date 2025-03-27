@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:open_file/open_file.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/screens/pipeline_screen.dart';
@@ -32,6 +35,14 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
   Map<String, dynamic>? selectedReservation;
   List<Map<String, dynamic>> banks = [];
   List<Map<String, dynamic>> documentTypes = [];
+  String amount = "";
+  double expectedAmount = 0;
+  double remainingAmount = 0;
+  bool showInsufficientMessage = false;
+  bool isAmountSufficient = false;
+  String fetchedName = "";
+  String requestLetterFileType = "";
+  String paymentFileType = "";
 
   @override
   void initState() {
@@ -51,11 +62,14 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       List<String>? registeredSites = prefs.getStringList("registered_sites");
 
+      fetchedName = prefs.getString("name") ?? "";
+
       if (registeredSites != null) {
         properties = propertiesData
             .where((prop) =>
                 prop.containsKey("site") &&
-                registeredSites.contains(prop["site"].toString()))
+                registeredSites.contains(prop["site"].toString()) &&
+                prop["state"] == "available")
             .toList();
       } else {
         properties = [];
@@ -66,7 +80,11 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
       debugPrint('banks updated: $banks');
 
       documentTypes = documentTypesData;
-      reservationTypes = reservationData;
+      reservationTypes = reservationData
+          .where((type) => type["is_used_use"] == false)
+          .toList();
+
+      setState(() {});
     } catch (e) {
       debugPrint("Error fetching data: $e");
       if (mounted) {
@@ -76,6 +94,58 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
       }
     } finally {
       if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  void updateAmount() async {
+    if (selectedProperty != null && selectedReservationType != null) {
+      int? propertyId = properties.firstWhere(
+        (prop) => prop['name'] == selectedProperty,
+        orElse: () => {'id': null},
+      )['id'];
+
+      int? reservationTypeId = reservationTypes.firstWhere(
+        (type) => type['name'] == selectedReservationType,
+        orElse: () => {'id': null},
+      )['id'];
+
+      if (propertyId != null && reservationTypeId != null) {
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        int? customerId = prefs.getInt("partner_id");
+
+        if (customerId == null) {
+          setState(() {
+            amount = "Customer ID not found";
+          });
+          return;
+        }
+
+        try {
+          var response = await ApiService()
+              .checkAmount(customerId, reservationTypeId, propertyId);
+
+          if (response.containsKey("data") &&
+              response["data"].containsKey("expected")) {
+            setState(() {
+              expectedAmount =
+                  double.parse(response["data"]["expected"].toString());
+              remainingAmount = expectedAmount; // Set initial remaining amount
+              isAmountSufficient = false; // Reset state
+
+              amount =
+                  "Insufficient Amount! Remaining Amount: ${remainingAmount.toStringAsFixed(2)}";
+            });
+          } else {
+            setState(() {
+              amount = "Failed to fetch amount";
+            });
+          }
+        } catch (e) {
+          setState(() {
+            amount = "Error fetching amount";
+          });
+        }
+      }
     }
   }
 
@@ -95,6 +165,8 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
       }
       calculateEndDate();
     });
+
+    updateAmount();
 
     debugPrint('Selected Reservation Type: $selectedReservationType');
     debugPrint('Reservation Type: ${selectedReservation?["reservation_type"]}');
@@ -186,12 +258,13 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const PipelineScreen(),
-                ),
-              );
+              // Navigator.pushReplacement(
+              //   context,
+              //   MaterialPageRoute(
+              //     builder: (context) => const NewReservationScreen(),
+              //   ),
+              // );
+              setState(() {});
             },
             child: const Text("OK",
                 style: TextStyle(
@@ -206,6 +279,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
     if (_formKey.currentState!.validate()) {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       int? partnerId = prefs.getInt("partner_id");
+      int? leadId = prefs.getInt("lead_id");
 
       int? propertyId = properties.firstWhere(
           (prop) => prop['name'] == selectedProperty,
@@ -220,7 +294,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
       }
 
       if (paymentReceiptsBase64 == null || paymentReceiptsBase64!.isEmpty) {
-        print("Error: No payment receipt data provided.");
+        debugPrint("Error: No payment receipt data provided.");
       }
 
       debugPrint('banks in create reservation: $banks');
@@ -228,10 +302,10 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
       Map<String, dynamic> reservationData = {
         "property_id": propertyId,
         "partner_id": partnerId,
+        "lead_id": leadId,
         "reservation_type_id": reservationTypeId,
         "expire_date": endDateController.text,
-        if (requestLetterBase64 != null)
-          "request_letter": requestLetterBase64, // ✅ Correct way
+        if (requestLetterBase64 != null) "request_letter": requestLetterBase64,
         "payment_line_ids": payments
             .map((payment) => {
                   "document_type_id": documentTypes.firstWhere(
@@ -245,7 +319,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                       orElse: () {
                     debugPrint(
                         "No matching bank found for '${payment['bank_name']}'");
-                    return {"id": 0}; // Default to 0 if not found
+                    return {"id": 0};
                   })["id"],
                   "payment_receipt": payment["payment_receipt"],
                   "ref_number": payment['reference_number'],
@@ -262,7 +336,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
       // Check before sending request
       if (paymentReceiptsBase64 != null &&
           !isValidBase64(paymentReceiptsBase64!)) {
-        print("Invalid Base64 format for payment receipt!");
+        debugPrint("Invalid Base64 format for payment receipt!");
       }
 
       // Call API service
@@ -279,11 +353,66 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
     }
   }
 
+  void _viewFile(String base64Data, String fileType) async {
+    if (base64Data.isEmpty) return;
+
+    try {
+      // ✅ First Base64 decode
+      String firstDecodedString = utf8.decode(base64Decode(base64Data));
+
+      // ✅ Second Base64 decode
+      Uint8List decodedBytes = base64Decode(firstDecodedString);
+
+      // Get a temporary directory
+      Directory tempDir = await getTemporaryDirectory();
+      String tempPath =
+          "${tempDir.path}/temp_file.$fileType"; // ✅ Correct extension
+
+      // Write the file to the temporary location
+      File tempFile = File(tempPath);
+      await tempFile.writeAsBytes(decodedBytes);
+
+      if (fileType == "jpg" || fileType == "png") {
+        // ✅ Display the image in a dialog
+        showDialog(
+          // ignore: use_build_context_synchronously
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Uploaded File"),
+            content:
+                Image.memory(decodedBytes), // ✅ Image is now correctly decoded
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
+            ],
+          ),
+        );
+      } else if (fileType == "pdf") {
+        // ✅ Open PDFs using an external viewer
+        OpenFile.open(tempPath);
+      } else {
+        // Unsupported file type
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Unsupported file format")),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error decoding file: $e");
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error decoding file")),
+      );
+    }
+  }
+
   Future<void> _pickFile(bool isPaymentReceipt) async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'png', 'pdf'],
-      withData: false,
+      withData: true, // Ensures data is available
     );
 
     if (result == null ||
@@ -297,25 +426,34 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
       File file = File(result.files.single.path!);
       List<int> fileBytes = await file.readAsBytes();
 
-      // First Base64 encoding
-      String firstBase64 = base64Encode(fileBytes);
-      debugPrint(
-          "First Base64 Encoded (Preview): ${firstBase64.substring(0, 50)}...");
+      // Extract file extension
+      String? fileExtension = result.files.single.extension;
 
-      // Second Base64 encoding
+      if (fileExtension == null) {
+        debugPrint("Could not determine file extension.");
+        return;
+      }
+
+      // Double Base64 encoding
+      String firstBase64 = base64Encode(fileBytes);
       String doubleEncodedBase64 = base64Encode(utf8.encode(firstBase64));
-      debugPrint(
-          "Second Base64 Encoded (Preview): ${doubleEncodedBase64.substring(0, 50)}...");
 
       setState(() {
         if (isPaymentReceipt) {
           paymentReceiptsBase64 = doubleEncodedBase64;
+          paymentFileType = fileExtension;
         } else {
           requestLetterBase64 = doubleEncodedBase64;
+          requestLetterFileType = fileExtension;
         }
       });
 
-      debugPrint("Successfully set double Base64 encoded string.");
+      // Ensure immediate UI update by triggering a rebuild
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {});
+      });
+
+      debugPrint("File uploaded: $fileExtension");
     } catch (e) {
       debugPrint("Error encoding file: $e");
     }
@@ -370,77 +508,101 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                   const SizedBox(height: 50),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start, // Aligns items to the top
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.only(left: 35.0, top: 20.0),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 35.0, top: 20.0),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               "New Reservation",
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            SizedBox(height: 5),
-                            Text(
-                              "Test-Lead Lycee",
-                              style: TextStyle(
-                                fontSize: 16,
+                            const SizedBox(height: 5),
+                            SizedBox(
+                              width: 150,
+                              child: Text(
+                                fetchedName,
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.bold),
+                                softWrap: true,
+                                overflow: TextOverflow.visible,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.house,
-                              color: Color(0xff84A441),
-                              size: 30,
-                            ),
-                            onPressed: () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const HomeScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.logout,
-                              color: Color(0xff84A441),
-                              size: 30,
-                            ),
-                            onPressed: () async {
-                              try {
-                                await ApiService().logout();
+                      Padding(
+                        padding: const EdgeInsets.only(
+                            top: 10.0), // Moves the icons upward
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.house,
+                                color: Color(0xff84A441),
+                                size: 30,
+                              ),
+                              onPressed: () {
                                 Navigator.pushReplacement(
-                                  // ignore: use_build_context_synchronously
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(),
+                                    builder: (context) => const HomeScreen(),
                                   ),
                                 );
-                              } catch (e) {
-                                // ignore: use_build_context_synchronously
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Logout failed: $e")),
-                                );
-                              }
-                            },
-                          ),
-                        ],
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.logout,
+                                color: Color(0xff84A441),
+                                size: 30,
+                              ),
+                              onPressed: () async {
+                                try {
+                                  await ApiService().logout();
+                                  Navigator.pushReplacement(
+                                    // ignore: use_build_context_synchronously
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const LoginScreen(),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  // ignore: use_build_context_synchronously
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content: Text("Logout failed: $e")),
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 60),
+
+                  if (remainingAmount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(
+                        amount,
+                        style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ),
+
                   _buildDropdownField(
                       "Property",
                       properties
@@ -462,28 +624,44 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                       width: 293),
                   const SizedBox(height: 15),
                   _buildDisabledField("End Date:", endDateController),
-                  if (paymentRequired) ...[
+
+                  if (selectedReservation?["reservation_type"] ==
+                      "special") ...[
                     const SizedBox(height: 15),
-                    if (selectedReservation?["reservation_type"] ==
-                        "special") ...[
-                      // Display the Request Letter Button
-                      Container(
-                        width: 200,
-                        child: ElevatedButton(
-                          onPressed: () => _pickFile(false),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xff84A441),
-                            minimumSize: const Size(double.infinity, 50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                    // Display the Request Letter Button
+                    SizedBox(
+                      width: 200,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () =>
+                                  _pickFile(false), // Upload Request Letter
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xff84A441),
+                                minimumSize: const Size(double.infinity, 50),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text("Request Letter",
+                                  style: TextStyle(color: Colors.white)),
                             ),
                           ),
-                          child: const Text("Request Letter",
-                              style: TextStyle(color: Colors.white)),
-                        ),
+                          if (requestLetterBase64 !=
+                              null) // Show immediately after upload
+                            IconButton(
+                              icon: const Icon(Icons.remove_red_eye,
+                                  color: Color(0xff84A441)),
+                              onPressed: () => _viewFile(
+                                  requestLetterBase64!, requestLetterFileType),
+                            ),
+                        ],
                       ),
-                      const SizedBox(height: 10),
-                    ],
+                    ),
+                  ],
+                  if (paymentRequired) ...[
+                    const SizedBox(height: 10),
                     // Display the Add Payment Button
                     _buildButton(
                       "Add Payment",
@@ -507,19 +685,19 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                         itemCount: payments.length,
                         itemBuilder: (context, index) {
                           final payment = payments[index];
+
                           return Card(
                             margin: const EdgeInsets.symmetric(vertical: 5),
                             elevation: 3,
-                            child: Padding(
-                              padding: const EdgeInsets.all(10),
-                              child: Column(
+                            child: ListTile(
+                              title: Text(
+                                "Bank: ${payment['bank_name']}",
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    "Bank: ${payment['bank_name']}",
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold),
-                                  ),
                                   Text("Acct No: ${payment['account_number']}"),
                                   Text("Doc: ${payment['document_type']}"),
                                   Text("Ref: ${payment['reference_number']}"),
@@ -531,11 +709,35 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                                   ),
                                 ],
                               ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Edit Button
+                                  IconButton(
+                                    icon: const Icon(Icons.edit,
+                                        color: Color(0xff84A441)),
+                                    onPressed: () {
+                                      showPaymentPopup(
+                                          context, () => setState(() {}),
+                                          editPayment: payment, index: index);
+                                    },
+                                  ),
+                                  // Delete Button
+                                  IconButton(
+                                    icon: const Icon(Icons.delete,
+                                        color: Color(0xff84A441)),
+                                    onPressed: () {
+                                      showDeleteConfirmation(context, index);
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },
                       ),
                     ),
+
                   const SizedBox(height: 30),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -677,8 +879,8 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
     );
   }
 
-  void showPaymentPopup(
-      BuildContext context, VoidCallback refreshReservations) async {
+  void showPaymentPopup(BuildContext context, VoidCallback refreshReservations,
+      {Map<String, dynamic>? editPayment, int? index}) async {
     String? selectedBank;
     String? selectedDocument;
     List<DropdownMenuItem<String>> bankItems = [];
@@ -686,6 +888,22 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
     TextEditingController referenceController = TextEditingController();
     TextEditingController dateController = TextEditingController();
     TextEditingController amountController = TextEditingController();
+
+    if (editPayment != null) {
+      selectedBank = banks
+          .firstWhere((bank) => bank["bank"] == editPayment["bank_name"],
+              orElse: () => {"id": null})["id"]
+          ?.toString();
+
+      selectedDocument = documentTypes
+          .firstWhere((doc) => doc["name"] == editPayment["document_type"],
+              orElse: () => {"id": null})["id"]
+          ?.toString();
+
+      referenceController.text = editPayment["reference_number"] ?? "";
+      dateController.text = editPayment["date"] ?? "";
+      amountController.text = editPayment["amount"] ?? "";
+    }
 
     Map<String, String?> errorMessages = {
       "bank": null,
@@ -778,6 +996,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                               });
                             },
                             placeholder: "Bank",
+                            errorMessage: errorMessages["bank"],
                           ),
                           const SizedBox(height: 10),
                           _buildDropdown(
@@ -789,31 +1008,70 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                               });
                             },
                             placeholder: "Document Type",
+                            errorMessage: errorMessages["document"],
                           ),
                           const SizedBox(height: 10),
                           _buildTextField(
-                              controller: referenceController,
-                              placeholder: "Ref No"),
+                            controller: referenceController,
+                            placeholder: "Ref No",
+                            errorMessage: errorMessages["reference"],
+                          ),
                           const SizedBox(height: 10),
-                          _buildDatePickerField(context, dateController),
+                          _buildDatePickerField(
+                            context,
+                            dateController,
+                            errorMessage: errorMessages["date"],
+                          ),
                           const SizedBox(height: 10),
                           _buildTextField(
-                              controller: amountController,
-                              placeholder: "Amount",
-                              isNumeric: true),
+                            controller: amountController,
+                            placeholder: "Amount",
+                            isNumeric: true,
+                            errorMessage: errorMessages["amount"],
+                          ),
                           const SizedBox(height: 20),
-                          ElevatedButton.icon(
-                            onPressed: () => _pickFile(true),
-                            label: const Text("Upload Payment Receipt",
-                                style: TextStyle(color: Colors.white)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xff84A441),
-                              minimumSize: const Size(double.infinity, 50),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                          SizedBox(
+                            // width: 200,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () async {
+                                      await _pickFile(
+                                          true); // Upload Payment Receipt
+                                      setState(
+                                          () {}); // Ensure UI updates immediately
+                                    },
+                                    label: const Text(
+                                      "Upload Payment Receipt",
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xff84A441),
+                                      minimumSize:
+                                          const Size(double.infinity, 50),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.upload,
+                                        color: Colors.white),
+                                  ),
+                                ),
+                                const SizedBox(
+                                    width:
+                                        10), // Add space between button and icon
+                                if (paymentReceiptsBase64 !=
+                                    null) // Show immediately after upload
+                                  IconButton(
+                                    icon: const Icon(Icons.remove_red_eye,
+                                        color: Color(0xff84A441)),
+                                    onPressed: () => _viewFile(
+                                        paymentReceiptsBase64!,
+                                        paymentFileType),
+                                  ),
+                              ],
                             ),
-                            icon: const Icon(Icons.upload, color: Colors.white),
                           ),
                           const SizedBox(height: 50),
                           Row(
@@ -842,49 +1100,79 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                                           amountController.text.isEmpty
                                               ? "Amount is required"
                                               : null;
+                                      errorMessages["receipt"] =
+                                          (paymentReceiptsBase64 == null)
+                                              ? "Upload a payment receipt"
+                                              : null;
                                     });
 
+                                    // If any validation fails, stop here
                                     if (errorMessages.values
-                                        .every((e) => e == null)) {
-                                      // Find the correct bank data
-                                      var bankData = banks.firstWhere(
-                                          (bank) =>
-                                              bank["id"].toString() ==
-                                              selectedBank,
-                                          orElse: () => {});
-                                      String bankName =
-                                          bankData["bank"].toString();
-                                      String accountNumber =
-                                          bankData["account_number"] ?? "N/A";
-
-                                      // Find the correct document type name
-                                      var documentData =
-                                          documentTypes.firstWhere(
-                                              (doc) =>
-                                                  doc["id"].toString() ==
-                                                  selectedDocument,
-                                              orElse: () => {});
-                                      String documentTypeName =
-                                          documentData["name"] ?? "Unknown";
-
-                                      payments.add({
-                                        "bank_name": bankName,
-                                        "account_number": accountNumber,
-                                        "document_type": documentTypeName,
-                                        "payment_receipt":
-                                            paymentReceiptsBase64!,
-                                        "reference_number":
-                                            referenceController.text,
-                                        "date": dateController.text,
-                                        "amount": amountController.text,
-                                      });
-
-                                      // Close the popup
-                                      Navigator.of(context).pop();
-
-                                      // Refresh reservations list
-                                      refreshReservations();
+                                        .any((msg) => msg != null)) {
+                                      debugPrint(
+                                          "Validation failed: $errorMessages");
+                                      return;
                                     }
+
+                                    double enteredAmount = double.tryParse(
+                                            amountController.text) ??
+                                        0.0;
+
+                                    var bankData = banks.firstWhere(
+                                      (bank) =>
+                                          bank["id"].toString() == selectedBank,
+                                      orElse: () => {},
+                                    );
+                                    String bankName =
+                                        bankData["bank"] ?? "Unknown";
+                                    String accountNumber =
+                                        bankData["account_number"] ?? "N/A";
+
+                                    var documentData = documentTypes.firstWhere(
+                                      (doc) =>
+                                          doc["id"].toString() ==
+                                          selectedDocument,
+                                      orElse: () => {},
+                                    );
+                                    String documentTypeName =
+                                        documentData["name"] ?? "Unknown";
+
+                                    Map<String, String> newPayment = {
+                                      "bank_name": bankName,
+                                      "account_number": accountNumber,
+                                      "document_type": documentTypeName,
+                                      "payment_receipt": paymentReceiptsBase64!,
+                                      "reference_number":
+                                          referenceController.text,
+                                      "date": dateController.text,
+                                      "amount": amountController.text,
+                                    };
+
+                                    setState(() {
+                                      if (editPayment != null &&
+                                          index != null) {
+                                        payments[index] =
+                                            newPayment;
+                                      } else {
+                                        payments
+                                            .add(newPayment);
+                                      }
+
+                                      remainingAmount -= enteredAmount;
+                                      amount =
+                                          "Remaining Amount: ${remainingAmount.toStringAsFixed(2)}";
+                                    });
+
+                                    debugPrint("Saved Payment: $newPayment");
+                                    debugPrint(
+                                        "Updated Payments List: $payments");
+
+                                    // Close the dialog AFTER ensuring the data is saved
+                                    Future.delayed(Duration(milliseconds: 300),
+                                        () {
+                                      Navigator.of(context).pop();
+                                      refreshReservations();
+                                    });
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xff84A441),
@@ -931,99 +1219,169 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
     );
   }
 
+  void showDeleteConfirmation(BuildContext context, int index) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Confirm Delete"),
+        content: const Text("Are you sure you want to delete this payment?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                payments.removeAt(index);
+              });
+              Navigator.pop(context);
+              showSuccessDialog("Payment deleted successfully!");
+            },
+            child:
+                const Text("Yes, Delete", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDropdown({
     required List<DropdownMenuItem<String>> items,
     required void Function(String?) onChanged,
     String? value,
     required String placeholder,
+    String? errorMessage,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: SizedBox(
-        width: 293,
-        height: 52,
-        child: DropdownButtonFormField<String>(
-          value: value,
-          decoration: InputDecoration(
-            hintText: placeholder,
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (errorMessage != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 8.0, bottom: 4.0),
+            child: Text(
+              errorMessage,
+              style: TextStyle(color: Colors.red, fontSize: 12),
             ),
           ),
-          items: items,
-          onChanged: onChanged,
-          isExpanded: true,
-          dropdownColor: Colors.white,
-          menuMaxHeight: 250,
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: SizedBox(
+            width: 293,
+            height: 52,
+            child: DropdownButtonFormField<String>(
+              value: value,
+              decoration: InputDecoration(
+                hintText: placeholder,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: items,
+              onChanged: onChanged,
+              isExpanded: true,
+              dropdownColor: Colors.white,
+              menuMaxHeight: 250,
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildTextField(
-      {required String placeholder,
-      required TextEditingController controller,
-      bool isNumeric = false}) {
-    return Container(
-      width: 293,
-      height: 49,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          hintText: placeholder,
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+  Widget _buildTextField({
+    required String placeholder,
+    required TextEditingController controller,
+    bool isNumeric = false,
+    String? errorMessage,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (errorMessage != null) // Show error above the field
+          Padding(
+            padding: const EdgeInsets.only(left: 8.0, bottom: 4.0),
+            child: Text(
+              errorMessage,
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ),
+        Container(
+          width: 293,
+          height: 49,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              hintText: placeholder,
+              border: InputBorder.none,
+              contentPadding:
+                  const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+            ),
+            keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
+          ),
         ),
-        keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
-      ),
+      ],
     );
   }
 
   Widget _buildDatePickerField(
-      BuildContext context, TextEditingController controller) {
-    return Container(
-      width: 293,
-      height: 49,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: TextField(
-        controller: controller,
-        readOnly: true,
-        decoration: const InputDecoration(
-          hintText: "Transaction Date",
-          suffixIcon: Icon(Icons.calendar_today),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      BuildContext context, TextEditingController controller,
+      {String? errorMessage}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (errorMessage != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 8.0, bottom: 4.0),
+            child: Text(
+              errorMessage,
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ),
+        Container(
+          width: 293,
+          height: 49,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: TextField(
+            controller: controller,
+            readOnly: true,
+            decoration: const InputDecoration(
+              hintText: "Transaction Date",
+              suffixIcon: Icon(Icons.calendar_today),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+            ),
+            onTap: () async {
+              DateTime? pickedDate = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now(),
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2101),
+              );
+              if (pickedDate != null) {
+                String formattedDate =
+                    "${pickedDate.year}-${pickedDate.month}-${pickedDate.day}";
+                controller.text = formattedDate;
+              }
+            },
+          ),
         ),
-        onTap: () async {
-          DateTime? pickedDate = await showDatePicker(
-            context: context,
-            initialDate: DateTime.now(),
-            firstDate: DateTime(2000),
-            lastDate: DateTime(2101),
-          );
-          if (pickedDate != null) {
-            String formattedDate =
-                "${pickedDate.year}-${pickedDate.month}-${pickedDate.day}";
-            controller.text = formattedDate;
-          }
-        },
-      ),
+      ],
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:temer/screens/login_screen.dart';
 import 'package:temer/screens/properties_screen.dart';
 import 'package:temer/screens/reservations_screen.dart';
 import 'package:temer/screens/transfer_requests_screen.dart';
+import 'package:temer/screens/updates_screen.dart';
 import 'package:temer/services/api_service.dart';
 import 'pipeline_screen.dart';
 
@@ -71,7 +72,11 @@ class _HomeScreenState extends State<HomeScreen> {
         "label": "My Transfer Requests",
         "screen": const TransferRequestsScreen()
       },
-      {"icon": Icons.notifications, "label": "Updates", "screen": null},
+      {
+        "icon": Icons.notifications, 
+        "label": "Updates", 
+        "screen": const UpdatesScreen()
+      },
     ];
 
     return Scaffold(

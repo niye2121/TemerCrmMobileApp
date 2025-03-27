@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/services/api_service.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class TransferRequestsScreen extends StatefulWidget {
-  final List<Map<String, dynamic>>? transferRequests;
-
-  const TransferRequestsScreen({super.key, this.transferRequests});
+  const TransferRequestsScreen({super.key});
 
   @override
   // ignore: library_private_types_in_public_api
@@ -14,8 +13,8 @@ class TransferRequestsScreen extends StatefulWidget {
 }
 
 class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
-  List<Map<String, dynamic>> data = [];
-  List<Map<String, dynamic>> filteredTransferRequests = [];
+  List<Map<String, dynamic>> properties = [];
+  List<Map<String, dynamic>> filteredProperties = [];
   bool isLoading = true;
   String errorMessage = '';
   String searchQuery = '';
@@ -25,22 +24,24 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.transferRequests != null) {
-      data = widget.transferRequests!;
-      filteredTransferRequests = data;
-      isLoading = false;
-    } else {
-      fetchTransferRequestsData();
-    }
+    fetchProperties();
   }
 
-  Future<void> fetchTransferRequestsData() async {
+  Future<void> fetchProperties() async {
     try {
       List<Map<String, dynamic>> fetchedData =
           await ApiService().fetchMyTransferRequests();
       setState(() {
-        data = fetchedData;
-        filteredTransferRequests = data;
+        properties = fetchedData.map((request) {
+          return {
+            "id": request["id"],
+            "old_property_name": request["old_property_id"]["name"],
+            "new_property_name": request["property_id"]["name"],
+            "status": request["status"],
+            "payment_lines": request["payment_lines"],
+          };
+        }).toList();
+        filteredProperties = properties;
         isLoading = false;
       });
     } catch (e) {
@@ -51,56 +52,50 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
     }
   }
 
-  void filterTransferRequest() {
+  void filterProperties() {
     setState(() {
-      filteredTransferRequests = data.where((transferRequest) {
-        bool matchesSearch = transferRequest.values
-            .toString()
-            .toLowerCase()
-            .contains(searchQuery.toLowerCase());
+      filteredProperties = properties.where((property) {
+        bool matchesSearch = property["old_property_name"]
+                .toLowerCase()
+                .contains(searchQuery.toLowerCase()) ||
+            property["new_property_name"]
+                .toLowerCase()
+                .contains(searchQuery.toLowerCase()) ||
+            property["status"]
+                .toLowerCase()
+                .contains(searchQuery.toLowerCase());
 
         bool matchesFilter =
-            selectedFilter.isEmpty || transferRequest["status"] == selectedFilter;
+            selectedFilter.isEmpty || property["status"] == selectedFilter;
 
         return matchesSearch && matchesFilter;
       }).toList();
     });
   }
 
-  String formatStatus(String status) {
-    return status
-        .split('_') // Split by underscore
-        .map((word) =>
-            word[0].toUpperCase() +
-            word.substring(1).toLowerCase()) // Capitalize each word
-        .join(' '); // Join them back with a space
-  }
-
-  void groupByTransferRequest(String key) {
+  void groupByProperty(String key) {
     setState(() {
       selectedGroupBy = key;
-      if (key.isNotEmpty) {
-        filteredTransferRequests.sort((a, b) {
-          return (a[key] ?? '').toString().compareTo((b[key] ?? '').toString());
-        });
-      }
     });
   }
 
+  String formatStatus(String status) {
+    return status
+        .split('_')
+        .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
+        .join(' ');
+  }
+
   Color _getStatusColor(String status) {
-    switch (status) {
-      case 'requested':
-        return const Color(0xff84A441);
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return const Color(0xff84A441).withOpacity(0.34);
       case 'reserved':
-        return const Color(0xff84A441);
-      case 'pending_sales':
-        return const Color(0xffE29609).withOpacity(0.66);
-      case 'draft':
-        return const Color(0xffA15E1A).withOpacity(0.66);
-      case 'expired':
-        return const Color(0xffFF3131).withOpacity(0.28);
-      case 'canceled':
-        return const Color(0xffFF3131).withOpacity(0.5);
+        return const Color(0xffE29609).withOpacity(0.28);
+      case 'sold':
+        return const Color(0xffFF0000).withOpacity(0.69);
+      case 'pending':
+        return const Color(0xffE29609).withOpacity(0.28);
       default:
         return Colors.black;
     }
@@ -109,7 +104,7 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[200],
+      backgroundColor: const Color(0xffEAEAEA),
       body: Stack(
         children: [
           Positioned(
@@ -129,24 +124,26 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 70),
+                // Existing Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Spacer(),
-                    const Text(
-                      "Transfer Requests",
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    const Expanded(
+                      child: Center(
+                        child: Text(
+                          "My Transfer Requests",
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
-                    const Spacer(),
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(
-                            Icons.house,
-                            color: Color(0xff84A441),
-                            size: 30,
-                          ),
+                          icon: const Icon(Icons.house,
+                              color: Color(0xff84A441), size: 30),
                           onPressed: () {
                             Navigator.pushReplacement(
                               context,
@@ -183,30 +180,24 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
+
+                // Search and Filter Section
                 _buildSearchAndFilter(),
                 const SizedBox(height: 10),
-                Stack(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12, horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF84A441),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _tableHeaderText("Property"),
-                          _tableHeaderText("Customer"),
-                          _tableHeaderText("Type"),
-                          _tableHeaderText("End Date"),
-                          _tableHeaderText("Status"),
-                        ],
-                      ),
-                    ),
-                  ],
+
+                // Green Horizontal Bar
+                Container(
+                  height: 25, // Adjust height as needed
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xff84A441).withOpacity(0.29),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
                 ),
+
+                const SizedBox(height: 10),
+
+                // Property List
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -214,207 +205,23 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                           ? Center(
                               child: Text(errorMessage,
                                   style: const TextStyle(color: Colors.red)))
-                          : selectedGroupBy.isNotEmpty
-                              ? _buildGroupedView()
-                              : ListView.builder(
-                                  itemCount: filteredTransferRequests.length,
-                                  itemBuilder: (context, index) {
-                                    return _buildTransferRequestCard(
-                                        filteredTransferRequests[index]);
-                                  },
-                                ),
+                          : _buildGroupedView(),
+                ),
+
+                const Padding(
+                  padding: EdgeInsets.all(10.0),
+                  child: Text(
+                    "Powered by Ahadubit Technologies",
+                    style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTransferRequestCard(Map<String, dynamic> transferRequest) {
-    return GestureDetector(
-      child: Container(
-        width: double.infinity,
-        height: 60, // Increased height for better layout
-        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 6,
-              spreadRadius: 1,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                transferRequest["property"]?["name"] ?? "N/A",
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                transferRequest["customer"]?["name"] ?? "N/A",
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                transferRequest["reservation_type"]?["name"] ?? "N/A",
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                transferRequest["expire_date"] ?? "N/A",
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                formatStatus(transferRequest["status"]),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: _getStatusColor(transferRequest["status"] ?? ""),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGroupedView() {
-    if (selectedGroupBy.isEmpty) {
-      return ListView.builder(
-        itemCount: filteredTransferRequests.length,
-        itemBuilder: (context, index) {
-          return _buildTransferRequestCard(filteredTransferRequests[index]);
-        },
-      );
-    } else {
-      Map<String, List<Map<String, dynamic>>> groupedData = {};
-
-      for (var transferRequest in filteredTransferRequests) {
-        String key;
-
-        if (selectedGroupBy.toLowerCase() == "status") {
-          debugPrint('reservation by status');
-          key = transferRequest["status"] ?? "Unknown";
-        } else if (selectedGroupBy.toLowerCase() == "type") {
-          debugPrint('reservation by type');
-          key = transferRequest["reservation_type"]["name"] ?? "Unknown";
-        } else {
-          key = "Unknown"; // Default case
-        }
-
-        groupedData.putIfAbsent(key, () => []).add(transferRequest);
-      }
-
-      return ListView(
-        children: groupedData.entries.map((entry) {
-          String groupName = entry.key;
-          List<Map<String, dynamic>> transferRequests = entry.value;
-          int totalTransferRequests = transferRequests.length;
-
-          return _buildGroupCard(
-            groupName,
-            totalTransferRequests,
-            transferRequests,
-            groupedData: groupedData,
-          );
-        }).toList(),
-      );
-    }
-  }
-
-  Widget _buildGroupCard(String group, int totalTransferRequests,
-      List<Map<String, dynamic>> transferRequests,
-      {required Map<String, List<Map<String, dynamic>>> groupedData}) {
-    Color iconColor = _getStatusColor(group);
-    IconData iconData = Icons.business_center; // Adjust icon as needed
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            filteredTransferRequests = groupedData[group]!;
-            selectedGroupBy = '';
-          });
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          height: 115,
-          child: Row(
-            children: [
-              /// Center the icon vertically
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(iconData, color: iconColor.withOpacity(1), size: 50),
-                ],
-              ),
-              const SizedBox(width: 12),
-
-              /// Text content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment:
-                      MainAxisAlignment.center, // Center vertically
-                  children: [
-                    Text(
-                      formatStatus(group),
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: iconColor.withOpacity(0.5)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "Total Transfer Requests - $totalTransferRequests",
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -446,7 +253,7 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                       onChanged: (value) {
                         setState(() {
                           searchQuery = value;
-                          filterTransferRequest();
+                          filterProperties();
                         });
                       },
                       decoration: const InputDecoration(
@@ -465,39 +272,36 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
             onSelected: (value) {
               setState(() {
                 selectedFilter = value;
-                filterTransferRequest();
+                filterProperties();
               });
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: "", child: Text("All")),
-              const PopupMenuItem(value: "requested", child: Text("Requested")),
+              const PopupMenuItem(value: "pending", child: Text("Pending")),
+              const PopupMenuItem(value: "approved", child: Text("Approved")),
               const PopupMenuItem(value: "reserved", child: Text("Reserved")),
-              const PopupMenuItem(
-                  value: "pending_sales", child: Text("Pending Sales")),
-              const PopupMenuItem(value: "draft", child: Text("Draft")),
-              const PopupMenuItem(value: "expired", child: Text("Expired")),
-              const PopupMenuItem(value: "canceled", child: Text("Canceled")),
             ],
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.layers, color: Color(0xFF84A441)),
             onSelected: (value) {
-              groupByTransferRequest(value == "Status" ? "status" : "type");
+              setState(() {
+                groupByProperty(value);
+              });
             },
             itemBuilder: (context) => [
               const PopupMenuItem(
-                  value: "Status", child: Text("Group by Status")),
-              const PopupMenuItem(value: "Type", child: Text("Group by Type")),
+                  value: "status", child: Text("Group by Status")),
             ],
           ),
           IconButton(
-            icon: const Icon(Icons.refresh, color: Color(0xff84a441)),
+            icon: const Icon(Icons.refresh, color: Color(0xFF84A441)),
             onPressed: () {
               setState(() {
                 searchQuery = '';
                 selectedFilter = '';
                 selectedGroupBy = '';
-                filteredTransferRequests = List.from(data);
+                filteredProperties = properties; // Reset filter
               });
             },
           ),
@@ -506,14 +310,356 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
     );
   }
 
-  Widget _tableHeaderText(String text) {
-    return Expanded(
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+  Widget _buildGroupedView() {
+    if (selectedGroupBy.isEmpty) {
+      return ListView.builder(
+        itemCount: filteredProperties.length,
+        itemBuilder: (context, index) {
+          return _buildTransferRequestCard(filteredProperties[index]);
+        },
+      );
+    } else {
+      Map<String, List<Map<String, dynamic>>> groupedData = {};
+
+      for (var property in filteredProperties) {
+        String key =
+            selectedGroupBy == "status" ? property["status"] : "Unknown";
+        groupedData.putIfAbsent(key, () => []).add(property);
+      }
+
+      return ListView(
+        children: groupedData.entries.map((entry) {
+          String groupName = entry.key;
+          List<Map<String, dynamic>> properties = entry.value;
+          int totalProperties = properties.length;
+
+          return _buildGroupCard(groupName, totalProperties, properties,
+              groupedData: groupedData);
+        }).toList(),
+      );
+    }
+  }
+
+  Map<String, bool> expandedGroups = {};
+
+  Widget _buildGroupCard(
+      String group, int totalProperties, List<Map<String, dynamic>> properties,
+      {required Map<String, List<Map<String, dynamic>>> groupedData}) {
+    Color iconColor = _getStatusColor(group);
+    IconData iconData =
+        selectedGroupBy == "status" ? Icons.business : Icons.apartment;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
       ),
+      elevation: 2,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            filteredProperties = groupedData[group]!;
+            selectedGroupBy = '';
+          });
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          height: 115,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(iconData, color: iconColor.withOpacity(0.5), size: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      formatStatus(group),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: iconColor.withOpacity(0.5),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Total Transfer Requests - $totalProperties",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransferRequestCard(Map<String, dynamic> request) {
+    int totalPaid = request["payment_lines"].fold(0, (sum, item) {
+      return sum +
+          (item["amount"] is double
+              ? (item["amount"] as double).toInt()
+              : item["amount"]);
+    });
+
+    return GestureDetector(
+      onTap: () {
+        _showTransferRequestDetails(request);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 4,
+              spreadRadius: 1,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Row 1: Status (Right Aligned)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const SizedBox(), // Empty space to push status right
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(request["status"]),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(
+                    request["status"].toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            // Row 2: Old Property
+            Row(
+              children: [
+                const Icon(Icons.home, size: 14, color: Colors.black),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    "Old: ${request["old_property_name"]}",
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            // Row 3: New Property
+            Row(
+              children: [
+                const Icon(Icons.business, size: 14, color: Colors.blueAccent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    "New: ${request["new_property_name"]}",
+                    style:
+                        const TextStyle(fontSize: 14, color: Colors.blueAccent),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            // Row 4: Total Paid Amount
+            Row(
+              children: [
+                const Icon(Icons.attach_money, size: 14, color: Colors.green),
+                const SizedBox(width: 6),
+                Text(
+                  "Total Paid: $totalPaid",
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTransferRequestDetails(Map<String, dynamic> request) {
+    int totalPaid = request["payment_lines"].fold(0, (sum, item) {
+      return sum +
+          (item["amount"] is double
+              ? (item["amount"] as double).toInt()
+              : item["amount"]);
+    });
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Center(
+                child: Container(
+                  width: 50,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    "Status",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(request["status"]),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(
+                      request["status"].toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Old Property
+              Text(
+                "Old Property: ${request["old_property_name"]}",
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 6),
+
+              // New Property
+              Text(
+                "New Property: ${request["new_property_name"]}",
+                style: const TextStyle(fontSize: 14, color: Colors.blueAccent),
+              ),
+              const SizedBox(height: 10),
+
+              // Total Paid
+              Row(
+                children: [
+                  const Icon(Icons.attach_money, size: 14, color: Colors.green),
+                  const SizedBox(width: 6),
+                  Text(
+                    "Total Paid: $totalPaid",
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Payment Details
+              const Text(
+                "Payment Details:",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Column(
+                children:
+                    List.generate(request["payment_lines"].length, (index) {
+                  var payment = request["payment_lines"][index];
+                  return Card(
+                    color: Colors.grey[100],
+                    child: ListTile(
+                      leading: const Icon(Icons.receipt),
+                      title: Text("Ref: ${payment["ref_number"]}"),
+                      subtitle: Text("Amount: ${payment["amount"]}"),
+                    ),
+                  );
+                }),
+              ),
+
+              // Close Button
+              const SizedBox(height: 10),
+              Center(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Close"),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPropertyDetail(String label, String value) {
+    return Row(
+      children: [
+        Text(
+          "$label ",
+          style: const TextStyle(
+            fontSize: 13,
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 }

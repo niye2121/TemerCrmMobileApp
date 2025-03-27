@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
+import 'package:temer/screens/reservation_details_screen.dart';
 import 'package:temer/services/api_service.dart';
 
 class ReservationsScreen extends StatefulWidget {
@@ -24,12 +25,15 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
 
   @override
   void initState() {
+    debugPrint('reservation screen initiated');
     super.initState();
     if (widget.reservations != null) {
       data = widget.reservations!;
       filteredReservations = data;
+      debugPrint('widget reservations: ${widget.reservations}');
       isLoading = false;
     } else {
+      debugPrint('fetching reservation data');
       fetchReservationData();
     }
   }
@@ -222,151 +226,164 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
   }
 
   Widget _buildReservationCard(Map<String, dynamic> reservation) {
-  return Container(
-    padding: const EdgeInsets.all(12),
-    margin: const EdgeInsets.symmetric(vertical: 5),
-    height: 120, // Adjusted height for better spacing
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.2),
-          blurRadius: 4,
-          spreadRadius: 1,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // First Row: Property
-        Row(
-          children: [
-            const Text(
-              "Property: ",
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
+    debugPrint('reservation id: ${reservation['id']}');
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ReservationDetailScreen(
+              reservationId: reservation['id'],
             ),
-            Expanded(
-              child: Text(
-                reservation["property"]?["name"] ?? "N/A",
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        height: 120, // Adjusted height for better spacing
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 4,
+              spreadRadius: 1,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        const SizedBox(height: 15),
-
-        // Second Row: Customer and Type
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Customer
+            // First Row: Property
             Row(
               children: [
                 const Text(
-                  "Customer: ",
+                  "Property: ",
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
                   ),
                 ),
-                Text(
-                  reservation["customer"]?["name"] ?? "N/A",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.black,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-            // Type
-            Row(
-              children: [
-                const Text(
-                  "Type: ",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                Text(
-                  reservation["reservation_type"]?["name"] ?? "N/A",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.black,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 15),
-
-        // Third Row: Status and End Date
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Status
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(reservation["status"]),
-                    borderRadius: BorderRadius.circular(5),
-                  ),
+                Expanded(
                   child: Text(
-                    formatStatus(reservation["status"]),
+                    reservation["property"]?["name"] ?? "N/A",
                     style: const TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.bold,
                       color: Colors.black,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 15),
+
+            // Second Row: Customer and Type
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  "End Date: ",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
+                // Customer
+                Row(
+                  children: [
+                    const Text(
+                      "Customer: ",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Text(
+                      reservation["customer"]?["name"] ?? "N/A",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-                Text(
-                  reservation["expire_date"] ?? "N/A",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.black,
-                  ),
+                // Type
+                Row(
+                  children: [
+                    const Text(
+                      "Type: ",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Text(
+                      reservation["reservation_type"]?["name"] ?? "N/A",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+
+            // Third Row: Status and End Date
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Status
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(reservation["status"]),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        formatStatus(reservation["status"]),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 15),
+                Row(
+                  children: [
+                    const Text(
+                      "End Date: ",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Text(
+                      reservation["expire_date"] ?? "N/A",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ],
         ),
-      ],
-    ),
-  );
-}
-
+      ),
+    );
+  }
 
   Widget _buildGroupedView() {
     if (selectedGroupBy.isEmpty) {
@@ -560,5 +577,4 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
       ),
     );
   }
-
 }
