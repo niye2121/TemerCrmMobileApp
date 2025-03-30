@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,7 +16,7 @@ class ApiService {
       body: jsonEncode({
         "jsonrpc": "2.0",
         "params": {
-          "db": "dev_temer_feb27",
+          "db": "dev_temer_mar27",
           "login": username,
           "password": password
         }
@@ -300,10 +301,14 @@ class ApiService {
     if (pipelineData.containsKey("phones")) {
       List<dynamic> phones = pipelineData["phones"];
       for (var phone in phones) {
+        debugPrint('Before Formatting: ${jsonEncode(phone)}');
+
         phone["phone"] = phone["phone"].toString();
         if (phone.containsKey("id") && phone["id"] != null) {
           phone["id"] = int.tryParse(phone["id"].toString()) ?? phone["id"];
         }
+
+        debugPrint('After Formatting: ${jsonEncode(phone)}');
       }
     }
 
@@ -363,7 +368,6 @@ class ApiService {
       throw Exception("Failed to load pipeline data: ${response.statusCode}");
     }
   }
-
 
   Future<List<Map<String, dynamic>>> fetchReservationsByPipeline(
       int pipelineId) async {
@@ -620,7 +624,7 @@ class ApiService {
         .toList();
   }
 
-  Future<List<Map<String, dynamic>>> reserveItem(int reservationTypeId) async {
+  Future<Map<String, dynamic>> reserveItem(int reservationTypeId) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? sessionId = prefs.getString("session_id");
 
@@ -646,7 +650,7 @@ class ApiService {
     final Map<String, dynamic> responseBody = jsonDecode(response.body);
 
     if (response.statusCode == 200) {
-      return compute(parseJson, response.body);
+      return responseBody; // Return the response body as a Map
     } else {
       String errorMessage =
           responseBody["error"] ?? "Reservation failed. Please try again.";
@@ -711,6 +715,168 @@ class ApiService {
         return {
           "status": response.statusCode,
           "error": "Failed to mark reservation as lost"
+        };
+      }
+    } catch (e) {
+      return {"status": 500, "error": e.toString()};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchCancellationReasons() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/cancellationReasons");
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    debugPrint('fetchCancellationReasons response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      return compute(parseJson, response.body);
+    } else {
+      throw Exception(
+          "Failed to load cancellation reasons: ${response.statusCode}");
+    }
+  }
+
+  Future<Map<String, dynamic>> cancelReservation({
+    required int reservationId,
+    required int cancellationReasonId,
+  }) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/cancelReservation");
+    final body = jsonEncode({
+      "reservation_id": reservationId,
+      "rason_id": cancellationReasonId,
+    });
+
+    debugPrint('Cancelling reservation: $body');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": "session_id=$sessionId",
+        },
+        body: body,
+      );
+
+      debugPrint('cancelReservation response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          "status": response.statusCode,
+          "error": "Failed to cancel reservation"
+        };
+      }
+    } catch (e) {
+      return {"status": 500, "error": e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> createTransfer({
+    required int reservationId,
+    required int oldPropertyId,
+    required int
+        newPropertyId, // This should be renamed to propertyId in the request
+    required List<Map<String, dynamic>> payments, // Rename to payment_line_ids
+    required String requestLetterBase64,
+  }) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    final url = Uri.parse("$baseUrl/api/createTransfer");
+    final body = jsonEncode({
+      "reservation_id": reservationId,
+      "old_property_id": oldPropertyId,
+      "property_id": newPropertyId, // Changed key name
+      "request_letter": requestLetterBase64,
+      "payment_line_ids": payments, // Changed key name
+    });
+
+    debugPrint('Creating transfer: $body');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": "session_id=$sessionId",
+        },
+        body: body,
+      );
+
+      debugPrint('createTransfer response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          "status": response.statusCode,
+          "error": "Failed to create transfer"
+        };
+      }
+    } catch (e) {
+      return {"status": 500, "error": e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> createExtension({
+    required int reservationId,
+    required DateTime requestedDate,
+    required DateTime oldEndDate,
+    required String requestLetter,
+    required String remarks,
+  }) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    // Format the date correctly
+    String formattedRequestedDate =
+        DateFormat('yyyy-MM-dd HH:mm:ss').format(requestedDate);
+    String formattedOldEndDate =
+        DateFormat('yyyy-MM-dd HH:mm:ss').format(oldEndDate);
+
+    final url = Uri.parse("$baseUrl/api/createExtension");
+    final body = jsonEncode({
+      "reservation_id": reservationId,
+      "extension_date": formattedRequestedDate,
+      "old_end_date": formattedOldEndDate,
+      "request_letter_file": requestLetter,
+      "remark": remarks,
+    });
+
+    debugPrint('Creating extension: $body');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Cookie": "session_id=$sessionId",
+        },
+        body: body,
+      );
+
+      debugPrint('createExtension response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          "status": response.statusCode,
+          "error": "Failed to create extension"
         };
       }
     } catch (e) {

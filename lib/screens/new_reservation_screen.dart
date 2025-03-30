@@ -8,7 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
-import 'package:temer/screens/pipeline_screen.dart';
+import 'package:temer/screens/pipeline_detail_screen.dart';
 import 'package:temer/services/api_service.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -258,13 +258,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              // Navigator.pushReplacement(
-              //   context,
-              //   MaterialPageRoute(
-              //     builder: (context) => const NewReservationScreen(),
-              //   ),
-              // );
-              setState(() {});
+              Navigator.pop(context);
             },
             child: const Text("OK",
                 style: TextStyle(
@@ -611,6 +605,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                       selectedProperty, (value) {
                     setState(() {
                       selectedProperty = value;
+                      updateAmount();
                     });
                   }, width: 293),
                   const SizedBox(height: 15),
@@ -1151,11 +1146,9 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                                     setState(() {
                                       if (editPayment != null &&
                                           index != null) {
-                                        payments[index] =
-                                            newPayment;
+                                        payments[index] = newPayment;
                                       } else {
-                                        payments
-                                            .add(newPayment);
+                                        payments.add(newPayment);
                                       }
 
                                       remainingAmount -= enteredAmount;
@@ -1168,8 +1161,9 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                                         "Updated Payments List: $payments");
 
                                     // Close the dialog AFTER ensuring the data is saved
-                                    Future.delayed(Duration(milliseconds: 300),
-                                        () {
+                                    Future.delayed(
+                                        const Duration(milliseconds: 300), () {
+                                      // ignore: use_build_context_synchronously
                                       Navigator.of(context).pop();
                                       refreshReservations();
                                     });
@@ -1261,7 +1255,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
             padding: const EdgeInsets.only(left: 8.0, bottom: 4.0),
             child: Text(
               errorMessage,
-              style: TextStyle(color: Colors.red, fontSize: 12),
+              style: const TextStyle(color: Colors.red, fontSize: 12),
             ),
           ),
         Container(
@@ -1309,7 +1303,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
             padding: const EdgeInsets.only(left: 8.0, bottom: 4.0),
             child: Text(
               errorMessage,
-              style: TextStyle(color: Colors.red, fontSize: 12),
+              style: const TextStyle(color: Colors.red, fontSize: 12),
             ),
           ),
         Container(
@@ -1346,7 +1340,7 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
             padding: const EdgeInsets.only(left: 8.0, bottom: 4.0),
             child: Text(
               errorMessage,
-              style: TextStyle(color: Colors.red, fontSize: 12),
+              style: const TextStyle(color: Colors.red, fontSize: 12),
             ),
           ),
         Container(

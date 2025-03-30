@@ -1,8 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/services/api_service.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class TransferRequestsScreen extends StatefulWidget {
   const TransferRequestsScreen({super.key});
@@ -467,7 +472,8 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                 Expanded(
                   child: Text(
                     "Old: ${request["old_property_name"]}",
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                    style: TextStyle(
+                        fontSize: 14, color: Colors.black.withOpacity(0.4)),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -478,13 +484,12 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
             // Row 3: New Property
             Row(
               children: [
-                const Icon(Icons.business, size: 14, color: Colors.blueAccent),
+                const Icon(Icons.business, size: 14, color: Colors.black),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     "New: ${request["new_property_name"]}",
-                    style:
-                        const TextStyle(fontSize: 14, color: Colors.blueAccent),
+                    style: const TextStyle(fontSize: 14, color: Colors.black),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -578,14 +583,15 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
               // Old Property
               Text(
                 "Old Property: ${request["old_property_name"]}",
-                style: const TextStyle(fontSize: 14),
+                style: TextStyle(
+                    fontSize: 14, color: Colors.black.withOpacity(0.4)),
               ),
               const SizedBox(height: 6),
 
               // New Property
               Text(
                 "New Property: ${request["new_property_name"]}",
-                style: const TextStyle(fontSize: 14, color: Colors.blueAccent),
+                style: const TextStyle(fontSize: 14, color: Colors.black),
               ),
               const SizedBox(height: 10),
 
@@ -619,9 +625,24 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                   return Card(
                     color: Colors.grey[100],
                     child: ListTile(
-                      leading: const Icon(Icons.receipt),
+                      leading: IconButton(
+                        icon: const Icon(Icons.remove_red_eye,
+                            color: Colors.green),
+                        onPressed: () {
+                          _viewFile(payment[
+                              "payment_receipt"]); // Change fileType if needed
+                        },
+                      ),
                       title: Text("Ref: ${payment["ref_number"]}"),
-                      subtitle: Text("Amount: ${payment["amount"]}"),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Amount: ${payment["amount"]}"),
+                          Text("Bank: ${payment["bank_id"]["bank"]}"),
+                          Text(
+                              "Document Type: ${payment["document_type_id"]["bank"]}"),
+                        ],
+                      ),
                     ),
                   );
                 }),
@@ -631,9 +652,16 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
               const SizedBox(height: 10),
               Center(
                 child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(7.33)),
+                  ),
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("Close"),
+                  child: const Text("Close",
+                  style: TextStyle(color: Colors.white,),
                 ),
+              ),
               ),
             ],
           ),
@@ -642,24 +670,77 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
     );
   }
 
-  Widget _buildPropertyDetail(String label, String value) {
-    return Row(
-      children: [
-        Text(
-          "$label ",
-          style: const TextStyle(
-            fontSize: 13,
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
+  void _viewFile(String base64Data) async {
+    if (base64Data.isEmpty) return;
+
+    try {
+      // ✅ First Base64 decode
+      String firstDecodedString = utf8.decode(base64Decode(base64Data));
+
+      // ✅ Second Base64 decode
+      Uint8List decodedBytes = base64Decode(firstDecodedString);
+
+      // ✅ Identify file type from magic bytes
+      String fileType = _detectFileType(decodedBytes);
+
+      if (fileType == "unknown") {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Unsupported or unknown file format")),
+        );
+        return;
+      }
+
+      // Get a temporary directory
+      Directory tempDir = await getTemporaryDirectory();
+      String tempPath = "${tempDir.path}/temp_file.$fileType";
+
+      // Write the file to a temporary location
+      File tempFile = File(tempPath);
+      await tempFile.writeAsBytes(decodedBytes);
+
+      if (fileType == "jpg" || fileType == "png") {
+        // ✅ Display the image in a dialog
+        showDialog(
+          // ignore: use_build_context_synchronously
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Uploaded File"),
+            content: Image.memory(decodedBytes),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
+            ],
           ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-          ),
-        ),
-      ],
-    );
+        );
+      } else if (fileType == "pdf") {
+        // ✅ Open PDFs using an external viewer
+        OpenFile.open(tempPath);
+      }
+    } catch (e) {
+      debugPrint("Error decoding file: $e");
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error decoding file")),
+      );
+    }
+  }
+
+  /// Detects the file type based on magic bytes
+  String _detectFileType(Uint8List bytes) {
+    if (bytes.length < 4) return "unknown"; // Ensure we have enough data
+
+    String hex = bytes
+        .sublist(0, 4)
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
+
+    // Known file signatures
+    if (hex.startsWith("ffd8ff")) return "jpg"; // JPEG
+    if (hex.startsWith("89504e47")) return "png"; // PNG
+    if (hex.startsWith("25504446")) return "pdf"; // PDF
+
+    return "unknown"; // If format is not recognized
   }
 }

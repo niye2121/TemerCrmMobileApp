@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/services/api_service.dart';
+// ignore: depend_on_referenced_packages
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class PropertiesScreen extends StatefulWidget {

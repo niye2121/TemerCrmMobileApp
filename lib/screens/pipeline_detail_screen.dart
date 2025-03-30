@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:temer/screens/home_screen.dart';
@@ -260,6 +262,8 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
         });
       }
 
+      debugPrint("updated phones: ${jsonEncode(updatedPhones)}");
+
       // Ensure at least one phone exists
       if (updatedPhones.isEmpty) {
         showErrorDialog("At least one phone number is required.");
@@ -280,11 +284,15 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
             .firstWhere((source) => source['name'] == selectedSource)['id'],
         "phones": updatedPhones.map((p) {
           return {
+            if (p["id"] != null)
+              "id": p["id"],
             "country_id": p["country_id"] ?? selectedCountryId,
-            "phone": p["phone"]
-                .replaceAll("+", "")
-                .replaceAll(selectedPhoneCode, "")
-                .trim()
+            "phone": p["id"] != null
+                ? p["phone"]
+                : p["phone"]
+                    .replaceAll("+", "")
+                    .replaceAll(selectedPhoneCode, "")
+                    .trim()
           };
         }).toList(),
         "site_ids": selectedSites.map((site) {
@@ -797,10 +805,10 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                               break;
 
                                             case 'add_activity':
-                                              // Handle Add Activity
+                                              showAddActivityPopup(context);
                                               break;
                                             case 'view_activities':
-                                              // Handle View Activities
+                                              showActivityPopup(context);
                                               break;
                                             case 'mark_lost':
                                               _showMarkAsLostDialog(
@@ -1213,6 +1221,211 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     );
   }
 
+  void showActivityPopup(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor:
+          Colors.transparent, // Make background transparent for shadow effect
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          height: MediaQuery.of(context).size.height * 0.6,
+          decoration: BoxDecoration(
+            color: Colors.white, // Background color
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3), // Black shadow
+                offset: const Offset(4, 4), // Shadow at bottom-right corner
+                blurRadius: 6, // Smooth shadow effect
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "March 22, 2025",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView(
+                  children: [
+                    activityItem(
+                        "Dawit Bekele", "Empire → Empire, New road (site)", 6),
+                    activityItem("Dawit Bekele", "Office Visit done", 6),
+                    activityItem("Dawit Bekele",
+                        "Stage changed\n• Prospect → Follow Up (Stage)", 6),
+                    activityItem("Dawit Bekele", "Site Visit done", 6),
+                    activityItem(
+                        "Dawit Bekele",
+                        "Subject: Lead/Opportunity\nLead/Opportunity created with phone +251911657038",
+                        6),
+                    activityItem("Dawit Bekele", "Lead/Opportunity created", 6),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget activityItem(String name, String description, int daysAgo) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.purple,
+            child: Text(name[0], style: const TextStyle(color: Colors.white)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "$name - $daysAgo days ago",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(description,
+                    style: const TextStyle(color: Colors.black87)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void showAddActivityPopup(BuildContext context) async {
+    List<Map<String, dynamic>> lostReasons =
+        await ApiService().fetchLostReasons();
+    int? selectedLostReasonId;
+    TextEditingController closingNoteController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xffd9d9d9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Schedule Activity",
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xff84A441))),
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        offset: const Offset(4, 4),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        // ✅ Fix applied
+                        child: DropdownButtonFormField<int>(
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: "Activity Type",
+                            border: InputBorder.none,
+                          ),
+                          items: lostReasons.map((reason) {
+                            return DropdownMenuItem<int>(
+                              value: reason["id"],
+                              child: Text(
+                                reason["bank"],
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              selectedLostReasonId = value;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(
+                  height: 10,
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        offset: const Offset(4, 4),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(8),
+                  child: TextField(
+                    controller: closingNoteController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      hintText: "Summary",
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: _actionButton(
+                        "Cancel",
+                        const Color(0xff000000).withOpacity(0.37),
+                        () => Navigator.pop(context),
+                      ),
+                    ),
+                    Expanded(
+                      child: _actionButton(
+                          "Mark as Lost",
+                          selectedLostReasonId == null
+                              ? Colors.grey
+                              : const Color(0xff84A441),
+                          () {}),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showMarkAsLostDialog(int leadId) async {
     List<Map<String, dynamic>> lostReasons =
         await ApiService().fetchLostReasons();
@@ -1220,6 +1433,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     TextEditingController closingNoteController = TextEditingController();
 
     showDialog(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) {
         return StatefulBuilder(
@@ -1346,6 +1560,7 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
                                     );
 
                                     if (response["status"] == 200) {
+                                      // ignore: use_build_context_synchronously
                                       Navigator.pop(context);
                                       showSuccessDialog(
                                           "Reservation marked as lost.");
