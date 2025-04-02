@@ -80,13 +80,14 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return Scaffold(
-      body: Stack(
+      body: Container(
+        color: Colors.white,
+      child: Stack(
         children: [
           Column(
             children: [
               Container(
                 height: 150,
-                decoration: const BoxDecoration(color: Colors.white),
                 child: Stack(
                   children: [
                     Positioned(
@@ -173,6 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -225,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 fontWeight: FontWeight.bold,
                 color: isSelected ? Colors.white : Colors.black87,
               ),
-              textAlign: TextAlign.center, // Centers text horizontally
+              textAlign: TextAlign.center,
             ),
           ],
         ),

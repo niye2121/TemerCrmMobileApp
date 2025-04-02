@@ -137,7 +137,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
       case 'Prospect':
         return const Color(0xffA15E1A).withOpacity(0.66);
       case 'Expired':
-        return const Color(0xffFF3131).withOpacity(0.28);
+        return const Color(0xffFF3131).withOpacity(0.88);
       case 'Sold':
         return Colors.black;
       default:
@@ -427,7 +427,7 @@ class _PipelineScreenState extends State<PipelineScreen> {
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(iconData, color: iconColor.withOpacity(1), size: 50),
+                  Icon(iconData, color: iconColor.withOpacity(0.8), size: 50),
                 ],
               ),
               const SizedBox(width: 12),
@@ -441,13 +441,12 @@ class _PipelineScreenState extends State<PipelineScreen> {
                       style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: iconColor.withOpacity(0.5)),
+                          color: iconColor.withOpacity(0.8)),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       "Total Pipelines - $totalPipelines",
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 12),
                     ),
                   ],
                 ),

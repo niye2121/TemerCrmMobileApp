@@ -77,11 +77,7 @@ class _SplashScreenState extends State<SplashScreen> {
             const Text(
               "Powered by Ahadubit Technologies",
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
+              style: TextStyle(color: Colors.black54, fontSize: 12),
             ),
           ],
         ),

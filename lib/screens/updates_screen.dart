@@ -193,12 +193,6 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                       },
                     ),
                   ),
-                  const Center(
-                    child: Text(
-                      "Powered by Ahadubit Technologies",
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
                 ],
               ),
             ),

@@ -222,14 +222,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 45),
-                Padding(
+                const Padding(
                   padding: const EdgeInsets.only(bottom: 20.0),
                   child: Text(
                     "Powered by Ahadubit Technologies",
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(color: Colors.black54, fontSize: 12),
                   ),
                 ),
               ],

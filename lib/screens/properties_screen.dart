@@ -71,9 +71,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   String formatStatus(String status) {
     return status
         .split('_')
-        .map((word) =>
-            word[0].toUpperCase() +
-            word.substring(1).toLowerCase())
+        .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
         .join(' ');
   }
 
@@ -209,17 +207,6 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                                   style: const TextStyle(color: Colors.red)))
                           : _buildGroupedView(),
                 ),
-
-                const Padding(
-                  padding: EdgeInsets.all(10.0),
-                  child: Text(
-                    "Powered by Ahadubit Technologies",
-                    style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold),
-                  ),
-                ),
               ],
             ),
           ),
@@ -229,94 +216,95 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
   }
 
   Widget _buildSearchAndFilter() {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    child: Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 29,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 5,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value;
-                        filterProperties();
-                      });
-                    },
-                    decoration: const InputDecoration(
-                      hintText: "Search",
-                      border: InputBorder.none,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 29,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 5,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      onChanged: (value) {
+                        setState(() {
+                          searchQuery = value;
+                          filterProperties();
+                        });
+                      },
+                      decoration: const InputDecoration(
+                        hintText: "Search",
+                        border: InputBorder.none,
+                      ),
                     ),
                   ),
-                ),
-                const Icon(Icons.search, color: Color(0xFF84A441)),
-              ],
+                  const Icon(Icons.search, color: Color(0xFF84A441)),
+                ],
+              ),
             ),
           ),
-        ),
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.filter_alt, color: Color(0xFF84A441)),
-          onSelected: (value) {
-            setState(() {
-              selectedFilter = value;
-              filterProperties();
-            });
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(value: "", child: Text("All")),
-            const PopupMenuItem(value: "available", child: Text("Available")),
-            const PopupMenuItem(value: "reserved", child: Text("Reserved")),
-            const PopupMenuItem(value: "sold", child: Text("Sold")),
-            const PopupMenuItem(value: "1", child: Text("1 Bedroom")),
-            const PopupMenuItem(value: "2", child: Text("2 Bedroom")),
-            const PopupMenuItem(value: "3", child: Text("3 Bedroom")),
-            const PopupMenuItem(value: "4", child: Text("4 Bedroom")),
-          ],
-        ),
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.layers, color: Color(0xFF84A441)),
-          onSelected: (value) {
-            setState(() {
-              groupByProperty(value);
-            });
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(value: "site", child: Text("Group by Site")),
-            const PopupMenuItem(value: "state", child: Text("Group by Status")),
-            const PopupMenuItem(value: "property_type", child: Text("Group by Type")),
-          ],
-        ),
-        IconButton(
-          icon: const Icon(Icons.refresh, color: Color(0xFF84A441)),
-          onPressed: () {
-            setState(() {
-              searchQuery = '';
-              selectedFilter = '';
-              selectedGroupBy = '';
-              filteredProperties = properties; // Reset filter
-            });
-          },
-        ),
-      ],
-    ),
-  );
-}
-
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.filter_alt, color: Color(0xFF84A441)),
+            onSelected: (value) {
+              setState(() {
+                selectedFilter = value;
+                filterProperties();
+              });
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: "", child: Text("All")),
+              const PopupMenuItem(value: "available", child: Text("Available")),
+              const PopupMenuItem(value: "reserved", child: Text("Reserved")),
+              const PopupMenuItem(value: "sold", child: Text("Sold")),
+              const PopupMenuItem(value: "1", child: Text("1 Bedroom")),
+              const PopupMenuItem(value: "2", child: Text("2 Bedroom")),
+              const PopupMenuItem(value: "3", child: Text("3 Bedroom")),
+              const PopupMenuItem(value: "4", child: Text("4 Bedroom")),
+            ],
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.layers, color: Color(0xFF84A441)),
+            onSelected: (value) {
+              setState(() {
+                groupByProperty(value);
+              });
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: "site", child: Text("Group by Site")),
+              const PopupMenuItem(
+                  value: "state", child: Text("Group by Status")),
+              const PopupMenuItem(
+                  value: "property_type", child: Text("Group by Type")),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFF84A441)),
+            onPressed: () {
+              setState(() {
+                searchQuery = '';
+                selectedFilter = '';
+                selectedGroupBy = '';
+                filteredProperties = properties; // Reset filter
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildGroupedView() {
     if (selectedGroupBy.isEmpty) {
@@ -340,8 +328,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
           List<Map<String, dynamic>> properties = entry.value;
           int totalProperties = properties.length;
 
-          return _buildGroupCard(
-              groupName, totalProperties, properties,
+          return _buildGroupCard(groupName, totalProperties, properties,
               groupedData: groupedData);
         }).toList(),
       );
@@ -365,11 +352,11 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
       elevation: 2,
       child: InkWell(
         onTap: () {
-        setState(() {
-          filteredProperties = groupedData[group]!;
-          selectedGroupBy = '';
-        });
-      },
+          setState(() {
+            filteredProperties = groupedData[group]!;
+            selectedGroupBy = '';
+          });
+        },
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -378,7 +365,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(iconData, color: iconColor.withOpacity(0.5), size: 40),
+              Icon(iconData, color: iconColor.withOpacity(0.8), size: 40),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -390,7 +377,7 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: iconColor.withOpacity(0.5),
+                        color: iconColor.withOpacity(0.8),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -399,7 +386,6 @@ class _PropertiesScreenState extends State<PropertiesScreen> {
                       style: const TextStyle(
                         fontSize: 12,
                         color: Colors.black,
-                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],

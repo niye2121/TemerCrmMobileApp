@@ -650,7 +650,7 @@ class ApiService {
     final Map<String, dynamic> responseBody = jsonDecode(response.body);
 
     if (response.statusCode == 200) {
-      return responseBody; // Return the response body as a Map
+      return responseBody;
     } else {
       String errorMessage =
           responseBody["error"] ?? "Reservation failed. Please try again.";
@@ -881,6 +881,164 @@ class ApiService {
       }
     } catch (e) {
       return {"status": 500, "error": e.toString()};
+    }
+  }
+
+  Future<List<dynamic>> getActivityTypes() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    if (sessionId == null) {
+      throw Exception("Session ID is missing. Please log in again.");
+    }
+
+    final url = Uri.parse("$baseUrl/api/activityTypes");
+
+    debugPrint("Calling API: $url");
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    debugPrint("API Response: ${response.body}");
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
+      return responseData["data"];
+    } else {
+      throw Exception("Failed to fetch activity types.");
+    }
+  }
+
+  Future<Map<String, dynamic>> createActivity({
+    required List<int> resIds,
+    required int activityTypeId,
+    required String summary,
+    String? note,
+  }) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    if (sessionId == null) {
+      throw Exception("Session ID is missing. Please log in again.");
+    }
+
+    final url = Uri.parse("$baseUrl/api/createActivity");
+
+    final requestBody = {
+      "res_ids": List<int>.from(resIds),
+      "activity_type_id": activityTypeId,
+      "summary": summary,
+      "note": note ?? "",
+    };
+
+    debugPrint("API Payload: ${jsonEncode(requestBody)}");
+
+    final response = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+      body: jsonEncode(requestBody),
+    );
+
+    debugPrint("API Response: ${response.body}");
+
+    final Map<String, dynamic> responseBody = jsonDecode(response.body);
+
+    if (responseBody["status"] == 200) {
+      debugPrint("Parsed Response: $responseBody");
+      return responseBody;
+    } else {
+      String errorMessage =
+          responseBody["error"] ?? "Failed to create activity.";
+      throw Exception(errorMessage);
+    }
+  }
+
+  Future<Map<String, dynamic>> getActivityByPipeline(int pipelineId) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    if (sessionId == null) {
+      throw Exception("Session ID is missing. Please log in again.");
+    }
+
+    final url =
+        Uri.parse("$baseUrl/api/activityByPipline?pipline_id=$pipelineId");
+
+    debugPrint("Calling API: $url");
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+    );
+
+    debugPrint("API Response: ${response.body}");
+
+    try {
+      final Map<String, dynamic> responseBody = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        debugPrint("Parsed Response: $responseBody");
+        return responseBody;
+      } else {
+        debugPrint("Error in API response: ${responseBody["error"]}");
+        throw Exception(
+            responseBody["error"] ?? "Failed to fetch activity data.");
+      }
+    } catch (e) {
+      debugPrint("JSON Parsing Error: $e");
+      throw Exception("Invalid response from the server.");
+    }
+  }
+
+  Future<Map<String, dynamic>> updateReservation(
+      Map<String, dynamic> requestBody) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? sessionId = prefs.getString("session_id");
+
+    if (sessionId == null) {
+      throw Exception("Session ID is missing. Please log in again.");
+    }
+
+    final url = Uri.parse("$baseUrl/api/updateReservation");
+
+    debugPrint("Calling API: $url with data: ${jsonEncode(requestBody)}");
+
+    final response = await http.put(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Cookie": "session_id=$sessionId",
+      },
+      body: jsonEncode(requestBody),
+    );
+
+    debugPrint("API Response: ${response.body}");
+
+    try {
+      final Map<String, dynamic> responseBody = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        debugPrint("Parsed Response: $responseBody");
+        return responseBody;
+      } else {
+        debugPrint("Error in API response: ${responseBody["error"]}");
+        throw Exception(
+            responseBody["error"] ?? "Failed to update reservation.");
+      }
+    } catch (e) {
+      debugPrint("JSON Parsing Error: $e");
+      throw Exception("Invalid response from the server.");
     }
   }
 }

@@ -61,8 +61,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 1, vsync: this);
-    fetchReservationDetail();
-    fetchData();
+    fetchReservationDetail().then((_) => fetchData());
   }
 
   @override
@@ -81,7 +80,9 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
       final documentTypesData = await ApiService().fetchDocumentTypes();
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
-      List<String>? registeredSites = prefs.getStringList("registered_sites");
+      List<String>? registeredSites = reservation?["site"]["name"];
+
+      debugPrint("registeredSites: $registeredSites");
 
       fetchedName = prefs.getString("name") ?? "";
 
@@ -150,6 +151,8 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
                 : 3;
         debugPrint("New tab count: $tabCount");
         debugPrint("isDraft: $isDraft");
+
+        debugPrint("reservation site : ${reservation?["site"]["name"]}");
 
         // Only recreate if the length changes
         if (_tabController.length != tabCount) {
@@ -278,7 +281,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
     }
   }
 
-  void createReservation() async {
+  void updateReservation() async {
     if (_formKey.currentState!.validate()) {
       SharedPreferences prefs = await SharedPreferences.getInstance();
       int? partnerId = prefs.getInt("partner_id");
@@ -368,20 +371,29 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text(
-          "Cancel Reservation",
+          "Cancellation Reason",
           style: TextStyle(
               color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 200,
-              height: 52,
+        content: SingleChildScrollView(
+          // Add SingleChildScrollView here
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  offset: const Offset(4, 4), // Shadow at bottom-right corner
+                  blurRadius: 6, // Smooth shadow effect
+                ),
+              ],
+            ),
+            child: SizedBox(
+              width: 300, // Increased width
               child: DropdownButtonFormField<String>(
                 value: selectedReason,
                 decoration: InputDecoration(
-                  hintText: 'Select reason',
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
@@ -392,41 +404,59 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: Colors.green, width: 1.5),
-                  ),
                   contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
                 items: cancellationReasons.map((e) {
                   return DropdownMenuItem<String>(
                     value: e['id'].toString(),
-                    child: Text(e['bank'] ?? ''),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(e['bank'] ?? ''),
+                        const Divider(), // Adds a line between each option
+                      ],
+                    ),
                   );
                 }).toList(),
                 isExpanded: true,
                 dropdownColor: Colors.white,
-                selectedItemBuilder: (BuildContext context) {
-                  return cancellationReasons.map<Widget>((e) {
-                    return Text(e['bank'] ?? '',
-                        style: const TextStyle(color: Colors.black));
-                  }).toList();
-                },
                 menuMaxHeight: MediaQuery.of(context).size.height * 0.4,
-                onChanged: (String? value) {},
+                onChanged: (String? value) {
+                  selectedReason = value ?? selectedReason;
+                },
               ),
             ),
-          ],
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("No"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Yes"),
+          Row(
+            mainAxisAlignment:
+                MainAxisAlignment.spaceBetween, // Keep buttons in line
+            children: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xff84A441),
+                  minimumSize: const Size(100, 40),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text("Yes", style: TextStyle(color: Colors.white)),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, false),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black.withOpacity(0.5),
+                  minimumSize: const Size(100, 40),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text("No", style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
         ],
         shape: RoundedRectangleBorder(
@@ -457,7 +487,8 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    bool isQuickReservation = reservation?["reservation_type"]?["name"] == "Quick Reservation";
+    bool isQuickReservation =
+        reservation?["reservation_type"]?["name"] == "Quick Reservation";
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
@@ -583,7 +614,12 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
                                     labelColor: Colors.black,
                                     indicatorColor: Colors.green,
                                     tabs: [
-                                      const Tab(text: "Reservation Detail"),
+                                      const Tab(
+                                        child: Text(
+                                          "Reservation\nDetail",
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
                                       if (!isQuickReservation &&
                                           reservation!["status"] == "reserved")
                                         const Tab(text: "Transfer"),
@@ -611,19 +647,6 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
                                         ),
                                 ),
                               ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 20.0),
-                            child: Align(
-                              alignment: Alignment.bottomCenter,
-                              child: Text(
-                                "Powered by Ahadubit Technologies",
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
                             ),
                           ),
                         ],
@@ -834,7 +857,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _buildButton("Save", const Color(0xff84A441), 129, 54,
-                          createReservation),
+                          updateReservation),
                       const SizedBox(width: 10),
                       _buildButton(
                           "Cancel",
@@ -954,8 +977,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
 
     bool expectedAmount = reservation!["expected_amount"] > 0;
 
-    bool showReserveButton =
-        isQuickReservation && isRequested && expectedAmount;
+    bool showReserveButton = isQuickReservation && isRequested;
     bool showAddPaymentButton =
         (isDraft || isRequested || isReserved) && expectedAmount;
 
@@ -1007,7 +1029,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
                             // Display the message received from the API
                             if (reservationResponse["status"] == 200) {
                               String message = reservationResponse[
-                                  "message"]; // Retrieve message
+                                  "massage"]; // Retrieve message
                               showSuccessDialog(
                                   message); // Display success dialog
                             } else {
@@ -1052,13 +1074,17 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
               ),
             ),
           const SizedBox(height: 16),
+          // Fetched Reservation Payment Details (Non-Editable)
+          _buildFetchedPaymentDetails(),
+          const SizedBox(height: 16),
+          // Newly Added Payment Details (Editable)
           _buildPaymentDetails(),
         ],
       ),
     );
   }
 
-  Widget _buildPaymentDetails() {
+  Widget _buildFetchedPaymentDetails() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1117,6 +1143,186 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
           );
         }),
       ],
+    );
+  }
+
+  Widget _buildPaymentDetails() {
+    bool hasNewPayment = payments.isNotEmpty;
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 10),
+          ...List.generate(payments.length, (index) {
+            var payment = payments[index];
+            return Card(
+              color: Colors.white,
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              margin: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start, // Align icons at the top
+                  children: [
+                    // Icon column aligned at the top
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove_red_eye,
+                              color: Color(0xff84A441)),
+                          onPressed: () =>
+                              _showDecodedReceipt(payment["payment_receipt"]!),
+                        ),
+                        IconButton(
+                          icon:
+                              const Icon(Icons.edit, color: Color(0xff84A441)),
+                          onPressed: () {
+                            showPaymentPopup(context, () => setState(() {}),
+                                editPayment: payment, index: index);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete,
+                              color: Color(0xff84A441)),
+                          onPressed: () =>
+                              showDeleteConfirmation(context, index),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(
+                        width: 10), // Add some space between the icons and text
+                    // Expanded for the title and subtitle to take the remaining space
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Amount: ${payment["amount"]}",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                              "Bank: ${payment["bank_name"] ?? 'Not Available'}"),
+                          Text(
+                              "Doc Type: ${payment["document_type"] ?? 'Not Available'}"),
+                          Text(
+                              "Ref No: ${payment["reference_number"] ?? 'Not Available'}"),
+                          Text("Date: ${payment["date"] ?? 'Not Available'}"),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          if (hasNewPayment)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (payments.isEmpty) {
+                        showErrorDialog("No new payment to save.");
+                        return;
+                      }
+                      try {
+                        setState(() => isLoading = true);
+                        List<Map<String, dynamic>> existingPayments =
+                            List.from(reservation!["payment_lines"]);
+                        List<Map<String, dynamic>> newPayments =
+                            payments.map((payment) {
+                          var docType = documentTypes.firstWhere(
+                            (doc) => doc["name"] == payment["document_type"],
+                            orElse: () =>
+                                {"id": 0, "bank": "Unknown Document Type"},
+                          );
+                          var bank = banks.firstWhere(
+                            (bank) =>
+                                bank["bank"].trim().toLowerCase() ==
+                                payment["bank_name"]!.trim().toLowerCase(),
+                            orElse: () => {"id": 0, "bank": "Unknown Bank"},
+                          );
+                          return {
+                            "document_type_id": {
+                              "id": docType["id"],
+                              "bank": docType["name"]
+                            },
+                            "bank_id": {"id": bank["id"], "bank": bank["bank"]},
+                            "payment_receipt": payment["payment_receipt"],
+                            "ref_number": payment['reference_number'],
+                            "transaction_date": payment['date'],
+                            "amount": int.parse(payment['amount']!),
+                            "is_verified": false,
+                          };
+                        }).toList();
+                        List<Map<String, dynamic>> updatedPaymentLines = [
+                          ...existingPayments,
+                          ...newPayments
+                        ];
+                        Map<String, dynamic> requestBody = {
+                          "id": reservation!["id"],
+                          "property_id": reservation!["property"]["id"],
+                          "partner_id": reservation!["customer"]["id"],
+                          "reservation_type_id":
+                              reservation!["reservation_type"]["id"],
+                          "expire_date": reservation!["expire_date"],
+                          "payment_line_ids": updatedPaymentLines,
+                        };
+                        Map<String, dynamic> response =
+                            await ApiService().updateReservation(requestBody);
+                        if (response["status"] == 200) {
+                          showSuccessDialog(
+                              "Reservation updated successfully.");
+                          setState(() {
+                            payments.clear();
+                            reservation!["payment_lines"] = updatedPaymentLines;
+                          });
+                        } else {
+                          showErrorDialog(response["error"] ??
+                              "Failed to update reservation.");
+                        }
+                      } catch (e) {
+                        showErrorDialog("Error updating reservation: $e");
+                      } finally {
+                        setState(() => isLoading = false);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xff84A441),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(7.33)),
+                    ),
+                    child: const Text("Update",
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      showSuccessDialog("Payment Cancelled!");
+                      setState(() => payments.clear());
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black.withOpacity(0.5),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(7.33)),
+                    ),
+                    child: const Text("Cancel",
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1211,29 +1417,31 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
 // 🛠 **Helper Function: Detect File Type**
   String? _detectFileType(Uint8List bytes) {
     if (bytes.length > 4) {
-      // Check for PNG signature
-      if (bytes[0] == 0x89 &&
+      // JPEG / JPG files start with FF D8 FF E0 or FF D8 FF E1
+      debugPrint("Checking for JPEG/JPG...");
+      if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+        debugPrint("Detected JPEG/JPG");
+        return "jpeg"; // Covers both JPG & JPEG
+      }
+      // PNG files start with 89 50 4E 47
+      else if (bytes[0] == 0x89 &&
           bytes[1] == 0x50 &&
           bytes[2] == 0x4E &&
           bytes[3] == 0x47) {
+        debugPrint("Detected PNG");
         return "png";
       }
-      // Check for JPG signature
-      if (bytes[0] == 0xFF &&
-          bytes[1] == 0xD8 &&
-          bytes[2] == 0xFF &&
-          (bytes[3] == 0xE0 || bytes[3] == 0xE1 || bytes[3] == 0xE8)) {
-        return "jpg";
-      }
-      // Check for PDF signature
-      if (bytes[0] == 0x25 &&
+      // PDF files start with 25 50 44 46
+      else if (bytes[0] == 0x25 &&
           bytes[1] == 0x50 &&
           bytes[2] == 0x44 &&
           bytes[3] == 0x46) {
+        debugPrint("Detected PDF");
         return "pdf";
       }
     }
-    return null;
+    debugPrint("Unknown file format detected.");
+    return null; // Unknown file format
   }
 
   void updateAmount() async {
@@ -1291,13 +1499,20 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
   }
 
   Widget _buildTransferTab() {
-    bool hasExistingTransfer = reservation?["transfers"]?.isNotEmpty ?? false;
+    bool hasExistingTransfers = reservation?["transfers"]?.isNotEmpty ?? false;
     double totalPaid = 0.0;
-    if (reservation!["transfers"]?.isNotEmpty ?? false) {
-      totalPaid = reservation!["transfers"][0]["payment_lines"]
-              ?.map((p) => (p["amount"] as num).toDouble())
-              ?.fold(0.0, (prev, amount) => prev + amount) ??
-          0.0;
+    List<Map<String, dynamic>> transfers =
+        List<Map<String, dynamic>>.from(reservation?["transfers"] ?? []);
+
+    // Calculate the total paid amount for each transfer
+    if (hasExistingTransfers) {
+      totalPaid = transfers.fold(0.0, (sum, transfer) {
+        return sum +
+            (transfer["payment_lines"]
+                    ?.map((p) => (p["amount"] as num).toDouble())
+                    ?.fold(0.0, (prev, amount) => prev + amount) ??
+                0.0);
+      });
     } else {
       totalPaid = reservation!["payment_lines"]
               ?.map((p) => (p["amount"] as num).toDouble())
@@ -1306,7 +1521,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
     }
 
     debugPrint("remaining amount in transfer tab: $remainingAmount");
-    debugPrint("amount in transfer tab: $amount");
+    debugPrint("total paid amount in transfer tab: $totalPaid");
 
     return StatefulBuilder(
       builder: (context, setState) {
@@ -1316,112 +1531,43 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (hasExistingTransfer)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Toggle Button
-                      ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            showTransferForm = hasExistingTransfer;
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xff84A441),
-                          minimumSize: const Size(50, 50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          showTransferForm ? "Hide Form" : "Add New Transfer",
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      showTransferForm = !showTransferForm;
 
-                      // Display existing transfer as a card
-                      Card(
-                        elevation: 4, // Slightly increased shadow
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(12), // Rounded corners
-                        ),
-                        margin: const EdgeInsets.symmetric(
-                            vertical: 10, horizontal: 8), // Add margin
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(Icons.swap_horiz,
-                                      color: Color(0xff84A441)),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    "Existing Transfer",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const Divider(
-                                  thickness: 1,
-                                  color: Colors.grey), // Separator
-                              const SizedBox(height: 8),
-                              _buildDetailRow(
-                                  "Old Property",
-                                  reservation!["transfers"][0]["old_property"]
-                                      ["name"]),
-                              _buildDetailRow(
-                                  "New Property",
-                                  reservation!["transfers"][0]["new_property"]
-                                      ["name"]),
-                              _buildDetailRow("Status",
-                                  reservation!["transfers"][0]["status"]),
-                              _buildDetailRow("Total Paid",
-                                  "${reservation!["transfers"][0]["total_paid"]}"),
-                              if (reservation!["transfers"][0]
-                                      ["request_letter"] !=
-                                  null)
-                                TextButton.icon(
-                                  onPressed: () => _viewExtensionRequestLetter(
-                                      reservation!["transfers"][0]
-                                          ["request_letter"]),
-                                  icon: const Icon(Icons.visibility,
-                                      color: Color(0xff84A441)),
-                                  label: const Text(
-                                      "View Transfer Request Letter",
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w600)),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: const Color(0xff84A441),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 5),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                      if (showTransferForm) {
+                        selectedProperty = null;
+                        requestLetterBase64 = null;
+                        payments.clear();
+                        remainingAmount = 0.0;
+                        amount = "0.0";
+                      }
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xff84A441),
+                    minimumSize: const Size(50, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                if (!hasExistingTransfer || showTransferForm)
+                  child: Text(
+                    showTransferForm ? "Hide Form" : "Add New Transfer",
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                const SizedBox(
+                  height: 10,
+                ),
+                if (!hasExistingTransfers || showTransferForm)
                   Column(
                     children: [
                       if (remainingAmount > 0)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8.0),
                           child: Text(
-                            "Insufficient amount. Remaining balance : $remainingAmount",
+                            "Insufficient amount. Remaining balance: $remainingAmount",
                             style: const TextStyle(
                                 color: Colors.red,
                                 fontSize: 14,
@@ -1657,6 +1803,76 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
                           }),
                         ],
                       ),
+                    ],
+                  ),
+                const SizedBox(height: 10),
+                if (hasExistingTransfers)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Display each existing transfer as a card
+                      ...transfers.map((transfer) {
+                        return Card(
+                          elevation: 4,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          margin: const EdgeInsets.symmetric(vertical: 10),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(Icons.swap_horiz,
+                                        color: Color(0xff84A441)),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      "Existing Transfer",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Divider(thickness: 1, color: Colors.grey),
+                                const SizedBox(height: 8),
+                                _buildDetailRow("Old Property",
+                                    transfer["old_property"]["name"]),
+                                _buildDetailRow("New Property",
+                                    transfer["new_property"]["name"]),
+                                _buildDetailRow("Status", transfer["status"]),
+                                _buildDetailRow(
+                                    "Total Paid", "${transfer["total_paid"]}"),
+                                if (transfer["request_letter"] != null)
+                                  TextButton.icon(
+                                    onPressed: () =>
+                                    _viewTransferRequestLetter(transfer["request_letter"]),
+                                        // _viewExtensionRequestLetter(
+                                        //     transfer["request_letter"]),
+                                    icon: const Icon(Icons.visibility,
+                                        color: Color(0xff84A441)),
+                                    label: const Text(
+                                        "View Transfer Request Letter",
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w600)),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: const Color(0xff84A441),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 5),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ],
                   ),
               ],
@@ -2363,97 +2579,33 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (hasExistingExtension) ...[
-                  /// Show "New Request" Button
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        showExtensionForm = !showExtensionForm;
-                        debugPrint(
-                            "Show Form in extension tab: $showExtensionForm");
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xff84A441),
-                      minimumSize: const Size(50, 50),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      showExtensionForm ? "Hide Form" : "Request New Extension",
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      showExtensionForm = !showExtensionForm;
 
-                  /// Show Existing Extensions
-                  Card(
-                    elevation: 4,
+                      if (showExtensionForm) {
+                        _newDateController.clear();
+                        _selectedNewDate = null;
+                        _errorMessage = null;
+                        _noteController.clear();
+                        requestLetterBase64 = null;
+                      }
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xff84A441),
+                    minimumSize: const Size(50, 50),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    margin:
-                        const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.event, color: Color(0xff84A441)),
-                              SizedBox(width: 8),
-                              Text(
-                                "Extension Details",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Divider(thickness: 1, color: Colors.grey),
-                          const SizedBox(height: 8),
-                          _buildDetailRow("Old Expire Date",
-                              reservation!["extensions"][0]["old_end_date"]),
-                          _buildDetailRow("Extension Date",
-                              reservation!["extensions"][0]["extension_date"]),
-                          _buildDetailRow("Request Date",
-                              reservation!["extensions"][0]["date"]),
-                          _buildDetailRow("Status",
-                              reservation!["extensions"][0]["status"]),
-                          const SizedBox(height: 8),
-                          if (reservation!["extensions"][0]["request_letter"] !=
-                              null)
-                            TextButton.icon(
-                              onPressed: () => _viewExtensionRequestLetter(
-                                  reservation!["extensions"][0]
-                                      ["request_letter"]),
-                              icon: const Icon(Icons.visibility,
-                                  color: Color(0xff84A441)),
-                              label: const Text("View Request Letter",
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.w600)),
-                              style: TextButton.styleFrom(
-                                foregroundColor: const Color(0xff84A441),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 5),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                ],
-
+                  child: Text(
+                    showExtensionForm ? "Hide Form" : "Request New Extension",
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
                 const SizedBox(height: 10),
-
-                /// Show Form When No Extension Exists or If "New Request" is Clicked
                 if (showExtensionForm) ...[
                   _buildInfoRow("Old Expire Date", reservation!["expire_date"]),
                   const SizedBox(height: 10),
@@ -2576,6 +2728,72 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
                     ],
                   ),
                 ],
+                const SizedBox(height: 10),
+                if (hasExistingExtension) ...[
+                  /// Show Existing Extensions
+                  ...reservation!["extensions"].map<Widget>((extension) {
+                    return Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      margin: const EdgeInsets.symmetric(
+                          vertical: 10, horizontal: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.event, color: Color(0xff84A441)),
+                                SizedBox(width: 8),
+                                Text(
+                                  "Extension Details",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Divider(thickness: 1, color: Colors.grey),
+                            const SizedBox(height: 8),
+                            _buildDetailRow(
+                                "Old Expire Date", extension["old_end_date"]),
+                            _buildDetailRow(
+                                "Extension Date", extension["extension_date"]),
+                            _buildDetailRow("Request Date", extension["date"]),
+                            _buildDetailRow("Status", extension["status"]),
+                            const SizedBox(height: 8),
+                            if (extension["request_letter"] != null)
+                              TextButton.icon(
+                                onPressed: () {
+                                  debugPrint("View Request Letter Pressed");
+                                  _viewExtensionRequestLetter(
+                                      extension["request_letter"]);
+                                },
+                                icon: const Icon(Icons.visibility,
+                                    color: Color(0xff84A441)),
+                                label: const Text("View Request Letter",
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w600)),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xff84A441),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 5),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ],
               ],
             ),
           ),
@@ -2585,35 +2803,62 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
   }
 
   void _viewExtensionRequestLetter(String base64Data) async {
-    if (base64Data.isEmpty) return;
+    debugPrint("View Request Letter Pressed");
+    debugPrint("view triggered");
+    debugPrint(
+        "Base64 Data (First 50 chars): ${base64Data.substring(0, 50)}...");
+
+    if (base64Data.isEmpty) {
+      debugPrint("Base64 data is empty. Exiting.");
+      return;
+    }
 
     try {
+      // First Decode: Base64 -> UTF-8 String (first decoding)
       String firstDecodedString = utf8.decode(base64Decode(base64Data));
+      debugPrint(
+          "First Decoded String (UTF-8, First 50 chars): ${firstDecodedString.substring(0, 50)}...");
 
-      Uint8List decodedBytes = base64Decode(firstDecodedString);
+      // Second Decode: Checking for any base64 structure in the decoded string
+      String secondDecodedBase64String = firstDecodedString;
+      if (_isBase64(secondDecodedBase64String)) {
+        // If the second decoding is valid base64, decode it
+        secondDecodedBase64String =
+            utf8.decode(base64Decode(secondDecodedBase64String));
+        debugPrint(
+            "Second Decoded Base64 String (First 50 chars): ${secondDecodedBase64String.substring(0, 50)}...");
+      } else {
+        debugPrint("No additional base64 encoding found.");
+      }
 
-      String? fileType = _detectFileType(decodedBytes);
+      // Third Decode: Base64 to Bytes (final decoding)
+      Uint8List finalDecodedBytes = base64Decode(secondDecodedBase64String);
+      debugPrint("Decoded Bytes Length: ${finalDecodedBytes.length}");
 
-      if (fileType == "unknown") {
+      // Detect file type
+      String? fileType = _detectFileType(finalDecodedBytes);
+      debugPrint("Detected file type: $fileType");
+
+      if (fileType == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Unsupported or unknown file format")),
         );
         return;
       }
 
+      // Save file to temporary storage
       Directory tempDir = await getTemporaryDirectory();
       String tempPath = "${tempDir.path}/temp_file.$fileType";
-
       File tempFile = File(tempPath);
-      await tempFile.writeAsBytes(decodedBytes);
+      await tempFile.writeAsBytes(finalDecodedBytes);
 
-      if (fileType == "jpg" || fileType == "png") {
+      // Handle different file types
+      if (fileType == "jpg" || fileType == "jpeg" || fileType == "png") {
         showDialog(
-          // ignore: use_build_context_synchronously
           context: context,
           builder: (context) => AlertDialog(
             title: const Text("Uploaded File"),
-            content: Image.memory(decodedBytes),
+            content: Image.memory(finalDecodedBytes),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -2627,12 +2872,80 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen>
       }
     } catch (e) {
       debugPrint("Error decoding file: $e");
-      // ignore: use_build_context_synchronously
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Error decoding file")),
+        );
+      }
+    }
+  }
+
+// Utility to check if a string is base64 encoded
+  bool _isBase64(String str) {
+    final base64Regex = RegExp(r'^[A-Za-z0-9+/=]+$');
+    return base64Regex.hasMatch(str);
+  }
+
+  void _viewTransferRequestLetter(String base64Data) async {
+  if (base64Data.isEmpty) return;
+
+  try {
+    // Decode the first layer of base64
+    String firstDecodedString = utf8.decode(base64Decode(base64Data));
+
+    // Decode the second layer of base64 (as the base64 string might be base64 encoded again)
+    Uint8List decodedBytes = base64Decode(firstDecodedString);
+
+    // Detect file type (JPEG, PNG, PDF, etc.)
+    String? fileType = _detectFileType(decodedBytes);
+
+    if (fileType == "unknown") {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Unsupported or unknown file format")),
+      );
+      return;
+    }
+
+    // Get the temporary directory path
+    Directory tempDir = await getTemporaryDirectory();
+    String tempPath = "${tempDir.path}/temp_file.$fileType";
+
+    // Create a temporary file and write the decoded bytes to it
+    File tempFile = File(tempPath);
+    await tempFile.writeAsBytes(decodedBytes);
+
+    // Check if the widget is still mounted before showing the dialog
+    if (!context.mounted) return;
+
+    // Show the dialog based on the file type (JPEG/JPG, PNG, or PDF)
+    if (fileType == "jpeg" || fileType == "jpg" || fileType == "png") {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Uploaded File"),
+            content: Image.memory(decodedBytes),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
+            ],
+          ),
+        );
+      });
+    } else if (fileType == "pdf") {
+      OpenFile.open(tempPath);
+    }
+  } catch (e) {
+    debugPrint("Error decoding file: $e");
+    if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Error decoding file")),
       );
     }
   }
+}
 
   Widget _buildExtensionDatePickerField(
     BuildContext context,

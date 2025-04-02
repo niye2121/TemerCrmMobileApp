@@ -749,17 +749,6 @@ class _NewReservationScreenState extends State<NewReservationScreen> {
                       }),
                     ],
                   ),
-                  const SizedBox(height: 215),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20.0),
-                    child: Text(
-                      "Powered by Ahadubit Technologies",
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

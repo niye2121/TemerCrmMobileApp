@@ -212,17 +212,6 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                                   style: const TextStyle(color: Colors.red)))
                           : _buildGroupedView(),
                 ),
-
-                const Padding(
-                  padding: EdgeInsets.all(10.0),
-                  child: Text(
-                    "Powered by Ahadubit Technologies",
-                    style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold),
-                  ),
-                ),
               ],
             ),
           ),
@@ -375,7 +364,7 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(iconData, color: iconColor.withOpacity(0.5), size: 40),
+              Icon(iconData, color: iconColor.withOpacity(0.8), size: 40),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -387,7 +376,7 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: iconColor.withOpacity(0.5),
+                        color: iconColor.withOpacity(0.8),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -396,7 +385,6 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                       style: const TextStyle(
                         fontSize: 12,
                         color: Colors.black,
-                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
@@ -472,8 +460,8 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                 Expanded(
                   child: Text(
                     "Old: ${request["old_property_name"]}",
-                    style: TextStyle(
-                        fontSize: 14, color: Colors.black.withOpacity(0.4)),
+                    style: const TextStyle(
+                        fontSize: 14, color:  Colors.black),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -489,7 +477,7 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                 Expanded(
                   child: Text(
                     "New: ${request["new_property_name"]}",
-                    style: const TextStyle(fontSize: 14, color: Colors.black),
+                    style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),

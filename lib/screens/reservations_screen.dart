@@ -456,7 +456,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(iconData, color: iconColor.withOpacity(1), size: 50),
+                  Icon(iconData, color: iconColor.withOpacity(0.8), size: 50),
                 ],
               ),
               const SizedBox(width: 12),
@@ -473,13 +473,12 @@ class _ReservationsScreenState extends State<ReservationsScreen> {
                       style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: iconColor.withOpacity(0.5)),
+                          color: iconColor.withOpacity(0.8)),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       "Total Reservations - $totalReservations",
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 12),
                     ),
                   ],
                 ),
