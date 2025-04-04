@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/screens/new_reservation_screen.dart';
@@ -651,695 +652,755 @@ class _PipelineDetailScreenState extends State<PipelineDetailScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[200],
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : errorMessage.isNotEmpty
-              ? Center(
-                  child: Text(errorMessage,
-                      style: const TextStyle(color: Colors.red)))
-              : Stack(
-                  children: [
-                    Positioned(
-                      left: -130,
-                      top: -140,
-                      child: Container(
-                        width: 250,
-                        height: 250,
-                        decoration: BoxDecoration(
-                          color: const Color(0xff84A441).withOpacity(0.38),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
+          ? buildSkeletonLoader()
+          : Stack(
+              children: [
+                Positioned(
+                  left: -130,
+                  top: -140,
+                  child: Container(
+                    width: 250,
+                    height: 250,
+                    decoration: BoxDecoration(
+                      color: const Color(0xff84A441).withOpacity(0.38),
+                      shape: BoxShape.circle,
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: SingleChildScrollView(
-                        child: Column(
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const SizedBox(height: 40),
+                        Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const SizedBox(height: 40),
+                            const Spacer(),
+                            const Text(
+                              "My Pipeline",
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                            const Spacer(),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Spacer(),
-                                const Text(
-                                  "My Pipeline",
-                                  style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.house,
+                                    color: Color(0xff84A441),
+                                    size: 30,
+                                  ),
+                                  onPressed: () {
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (context) =>
+                                              const HomeScreen()),
+                                    );
+                                  },
                                 ),
-                                const Spacer(),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.house,
-                                        color: Color(0xff84A441),
-                                        size: 30,
-                                      ),
-                                      onPressed: () {
-                                        Navigator.pushReplacement(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) =>
-                                                  const HomeScreen()),
-                                        );
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.logout,
-                                        color: Color(0xff84A441),
-                                        size: 30,
-                                      ),
-                                      onPressed: () async {
-                                        try {
-                                          await ApiService().logout();
-                                          Navigator.pushReplacement(
-                                            // ignore: use_build_context_synchronously
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (context) =>
-                                                    const LoginScreen()),
-                                          );
-                                        } catch (e) {
-                                          // ignore: use_build_context_synchronously
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            SnackBar(
-                                                content:
-                                                    Text("Logout failed: $e")),
-                                          );
-                                        }
-                                      },
-                                    ),
-                                  ],
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.logout,
+                                    color: Color(0xff84A441),
+                                    size: 30,
+                                  ),
+                                  onPressed: () async {
+                                    try {
+                                      await ApiService().logout();
+                                      Navigator.pushReplacement(
+                                        // ignore: use_build_context_synchronously
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (context) =>
+                                                const LoginScreen()),
+                                      );
+                                    } catch (e) {
+                                      // ignore: use_build_context_synchronously
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                            content: Text("Logout failed: $e")),
+                                      );
+                                    }
+                                  },
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 60),
-                            SingleChildScrollView(
-                              child: Column(
+                          ],
+                        ),
+                        const SizedBox(height: 60),
+                        SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        "Stage: $stage",
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          shadows: [
-                                            Shadow(
-                                              offset: Offset(1.0, 1.0),
-                                              blurRadius: 2.0,
-                                              color: Colors.grey,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Text(
-                                        "Reservations: $reservations",
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          shadows: [
-                                            Shadow(
-                                              offset: Offset(1.0, 1.0),
-                                              blurRadius: 2.0,
-                                              color: Colors.grey,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment
-                                        .end, // Aligns to the right
-                                    children: [
-                                      PopupMenuButton<String>(
-                                        onSelected: (value) async {
-                                          if (isInactiveStage) return;
-                                          switch (value) {
-                                            case 'add_reservation':
-                                              Navigator.pushReplacement(
-                                                context,
-                                                MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        const NewReservationScreen()),
-                                              );
-                                              break;
-                                            case 'view_reservations':
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) =>
-                                                      ReservationsScreen(
-                                                    reservations:
-                                                        pipelineReservations,
-                                                  ),
-                                                ),
-                                              );
-                                              break;
-
-                                            case 'add_activity':
-                                              showAddActivityPopup(
-                                                  context, [int.parse(widget.pipelineId)]);
-                                              break;
-                                            case 'view_activities':
-                                              showActivityPopup(context, int.parse(widget.pipelineId));
-                                              break;
-                                            case 'mark_lost':
-                                              _showMarkAsLostDialog(
-                                                  int.parse(widget.pipelineId));
-                                              break;
-                                          }
-                                        },
-                                        color: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        itemBuilder: (BuildContext context) => [
-                                          PopupMenuItem(
-                                            value: 'add_reservation',
-                                            enabled: !isInactiveStage,
-                                            child:
-                                                const Text('Add Reservation'),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'view_reservations',
-                                            child: Text('View Reservations'),
-                                          ),
-                                          PopupMenuItem(
-                                            value: 'add_activity',
-                                            enabled: !isInactiveStage,
-                                            child: const Text('Add Activity'),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'view_activities',
-                                            child: Text('View Activities'),
-                                          ),
-                                          PopupMenuItem(
-                                            value: 'mark_lost',
-                                            enabled: !isInactiveStage,
-                                            child: Container(
-                                              color:
-                                                  Colors.red.withOpacity(0.1),
-                                              padding: const EdgeInsets.all(5),
-                                              child: const Text(
-                                                'Mark as Lost',
-                                                style: TextStyle(
-                                                    color: Colors.red),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: isInactiveStage
-                                                ? Colors.grey
-                                                : const Color(0xff84A441),
-                                            borderRadius:
-                                                BorderRadius.circular(7.33),
-                                          ),
-                                          width: 116,
-                                          height: 52,
-                                          child: const Center(
-                                            child: Text(
-                                              "Action",
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 25),
-                                  SizedBox(
-                                    width: 293,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(10),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color:
-                                                Colors.black.withOpacity(0.3),
-                                            spreadRadius: 2,
-                                            blurRadius: 5,
-                                            offset: const Offset(2, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: TextField(
-                                        controller: nameController,
-                                        enabled: !isReservationStage,
-                                        decoration: const InputDecoration(
-                                          border: InputBorder.none,
-                                          contentPadding: EdgeInsets.symmetric(
-                                              vertical: 15, horizontal: 10),
-                                        ),
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: 293,
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        GestureDetector(
-                                          onTap: _showCountryPicker,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 25, vertical: 15),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(0.3),
-                                                  offset: const Offset(4, 4),
-                                                  blurRadius: 6,
-                                                ),
-                                              ],
-                                            ),
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                Text(selectedPhoneCode),
-                                                const Icon(
-                                                    Icons.arrow_drop_down),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 5),
-
-                                        // Use a TextField with the controller
-                                        Expanded(
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(0.3),
-                                                  spreadRadius: 2,
-                                                  blurRadius: 5,
-                                                  offset: const Offset(2, 2),
-                                                ),
-                                              ],
-                                            ),
-                                            child: TextField(
-                                              controller: phoneNumberController,
-                                              keyboardType: TextInputType.phone,
-                                              enabled: !isReservationStage,
-                                              decoration: const InputDecoration(
-                                                hintText: "phone number",
-                                                border: InputBorder.none,
-                                                contentPadding:
-                                                    EdgeInsets.symmetric(
-                                                        horizontal: 10,
-                                                        vertical: 15),
-                                              ),
-                                            ),
-                                          ),
+                                  Text(
+                                    "Stage: $stage",
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      shadows: [
+                                        Shadow(
+                                          offset: Offset(1.0, 1.0),
+                                          blurRadius: 2.0,
+                                          color: Colors.grey,
                                         ),
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: 293,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xffd9d9d9),
-                                        borderRadius: BorderRadius.circular(10),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color:
-                                                Colors.black.withOpacity(0.3),
-                                            spreadRadius: 2,
-                                            blurRadius: 5,
-                                            offset: const Offset(2, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      padding: const EdgeInsets.only(
-                                          left: 8, right: 8, bottom: 8),
-                                      child: GridView.builder(
-                                        shrinkWrap: true,
-                                        physics:
-                                            const NeverScrollableScrollPhysics(),
-                                        gridDelegate:
-                                            const SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: 2,
-                                          crossAxisSpacing: 2.0,
-                                          mainAxisSpacing: 2.0,
-                                          childAspectRatio: 3,
+                                  Text(
+                                    "Reservations: $reservations",
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      shadows: [
+                                        Shadow(
+                                          offset: Offset(1.0, 1.0),
+                                          blurRadius: 2.0,
+                                          color: Colors.grey,
                                         ),
-                                        itemCount: phoneNumbers.length,
-                                        itemBuilder: (context, index) {
-                                          final number = phoneNumbers[index];
-                                          return Container(
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xffd9d9d9),
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 4, vertical: 3),
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                Flexible(
-                                                  child: Text(
-                                                    number,
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color: Colors.black87,
-                                                    ),
-                                                  ),
-                                                ),
-                                                GestureDetector(
-                                                  onTap: isReservationStage
-                                                      ? null
-                                                      : () {
-                                                          if (phoneNumbers
-                                                                  .length >
-                                                              1) {
-                                                            setState(() =>
-                                                                phoneNumbers
-                                                                    .remove(
-                                                                        number));
-                                                          } else {
-                                                            showErrorDialog(
-                                                                "At least one phone number is required.");
-                                                          }
-                                                        },
-                                                  child: Container(
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.black,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              5),
-                                                    ),
-                                                    padding:
-                                                        const EdgeInsets.all(4),
-                                                    child: const Icon(
-                                                      Icons.close,
-                                                      size: 14,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      ),
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(height: 10),
-                                  GestureDetector(
-                                    onTap: _showMultiSelectDialog,
-                                    child: Container(
-                                      width: 293,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(10),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color:
-                                                Colors.black.withOpacity(0.3),
-                                            spreadRadius: 2,
-                                            blurRadius: 5,
-                                            offset: const Offset(2, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      padding: const EdgeInsets.all(10),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          if (siteNames.isNotEmpty)
-                                            Expanded(
-                                              child: Wrap(
-                                                spacing: 4.0,
-                                                runSpacing: 2.0,
-                                                children: siteNames
-                                                    .map((site) => Chip(
-                                                          label: Text(site),
-                                                          backgroundColor:
-                                                              Colors.grey[300],
-                                                        ))
-                                                    .toList(),
-                                              ),
-                                            ),
-                                          const Padding(
-                                            padding:
-                                                EdgeInsets.only(left: 10.0),
-                                            child: Icon(Icons.arrow_drop_down,
-                                                color: Colors.black),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: 293,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(10),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color:
-                                                Colors.black.withOpacity(0.3),
-                                            spreadRadius: 2,
-                                            blurRadius: 5,
-                                            offset: const Offset(2, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: DropdownButtonFormField<String>(
-                                        value: selectedSource,
-                                        items: sources.map((source) {
-                                          return DropdownMenuItem<String>(
-                                            value: source[
-                                                'name'], // Ensure the source name is used
-                                            child: Text(source['name']),
-                                          );
-                                        }).toList(),
-                                        onChanged: isReservationStage
-                                            ? null
-                                            : (value) {
-                                                setState(() {
-                                                  selectedSource = value!;
-                                                });
-                                              },
-                                        decoration: const InputDecoration(
-                                          border: InputBorder.none,
-                                          contentPadding: EdgeInsets.symmetric(
-                                              vertical: 15, horizontal: 10),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      _actionButton(
-                                        "Save",
-                                        isInactiveStage
-                                            ? Colors.grey
-                                            : const Color(0xff84A441),
-                                        isInactiveStage
-                                            ? null
-                                            : updatePipelineDetail,
-                                      ),
-                                      _actionButton(
-                                        "Cancel",
-                                        const Color(0xff000000)
-                                            .withOpacity(0.37),
-                                        () {
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment
+                                    .end, // Aligns to the right
+                                children: [
+                                  PopupMenuButton<String>(
+                                    onSelected: (value) async {
+                                      if (isInactiveStage) return;
+                                      switch (value) {
+                                        case 'add_reservation':
                                           Navigator.pushReplacement(
                                             context,
                                             MaterialPageRoute(
                                                 builder: (context) =>
-                                                    const PipelineScreen()),
+                                                    const NewReservationScreen()),
                                           );
-                                        },
+                                          break;
+                                        case 'view_reservations':
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  ReservationsScreen(
+                                                reservations:
+                                                    pipelineReservations,
+                                              ),
+                                            ),
+                                          );
+                                          break;
+
+                                        case 'add_activity':
+                                          showAddActivityPopup(context,
+                                              [int.parse(widget.pipelineId)]);
+                                          break;
+                                        case 'view_activities':
+                                          showActivityPopup(context,
+                                              int.parse(widget.pipelineId));
+                                          break;
+                                        case 'mark_lost':
+                                          _showMarkAsLostDialog(
+                                              int.parse(widget.pipelineId));
+                                          break;
+                                      }
+                                    },
+                                    color: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    itemBuilder: (BuildContext context) => [
+                                      PopupMenuItem(
+                                        value: 'add_reservation',
+                                        enabled: !isInactiveStage,
+                                        child: const Text('Add Reservation'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'view_reservations',
+                                        child: Text('View Reservations'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'add_activity',
+                                        enabled: !isInactiveStage,
+                                        child: const Text('Add Activity'),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'view_activities',
+                                        child: Text('View Activities'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'mark_lost',
+                                        enabled: !isInactiveStage,
+                                        child: Container(
+                                          color: Colors.red.withOpacity(0.1),
+                                          padding: const EdgeInsets.all(5),
+                                          child: const Text(
+                                            'Mark as Lost',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
                                       ),
                                     ],
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: isInactiveStage
+                                            ? Colors.grey
+                                            : const Color(0xff84A441),
+                                        borderRadius:
+                                            BorderRadius.circular(7.33),
+                                      ),
+                                      width: 116,
+                                      height: 52,
+                                      child: const Center(
+                                        child: Text(
+                                          "Action",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                            ),
-
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-    );
-  }
-
-void showActivityPopup(BuildContext context, int pipelineId) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (context) {
-      return FutureBuilder<Map<String, dynamic>>(
-        future: ApiService().getActivityByPipeline(pipelineId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          } else if (!snapshot.hasData || snapshot.data!['data'] == null) {
-            return const Center(child: Text("No activities found."));
-          }
-
-          List<dynamic> activities = snapshot.data!['data'];
-
-          return Container(
-            padding: const EdgeInsets.all(16),
-            height: MediaQuery.of(context).size.height * 0.6,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    )
-                  ],
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: activities.length,
-                    itemBuilder: (context, index) {
-                      var activity = activities[index];
-                      DateTime createDate = DateTime.parse(activity["create_date"]);
-                      String formattedDate = DateFormat('dd/MM/yyyy').format(createDate);
-                      
-                      bool showDateHeader = index == 0 ||
-                        DateFormat('dd/MM/yyyy').format(DateTime.parse(activities[index - 1]["create_date"])) != formattedDate;
-
-                      Duration difference = DateTime.now().difference(createDate);
-                      String daysAgo = difference.inDays == 0 ? "Today" :
-                                      difference.inDays == 1 ? "Yesterday" : "${difference.inDays} days ago";
-
-                      // Construct display text based on available data
-                      String displayText = "";
-
-                      if ((activity["note"] != null && activity["note"].isNotEmpty) ||
-                          (activity["summary"] != null && activity["summary"].isNotEmpty)) {
-                        // Show note or summary
-                        displayText = activity["activity_type"] != null
-                            ? "${activity["activity_type"]["name"]}: ${activity["summary"]?.trim().isNotEmpty == true ? activity["summary"] : activity["note"]}"
-                            : activity["summary"]?.trim().isNotEmpty == true ? activity["summary"] : activity["note"];
-                      } else if ((activity["field"] != null && activity["field"].isNotEmpty) &&
-                                 (activity["old_value_char"] != null && activity["old_value_char"].isNotEmpty) || 
-                                 (activity["new_value_char"] != null && activity["new_value_char"].isNotEmpty)) {
-                        // Show old and new value change
-                        displayText = "${activity["field"]}: ${activity["old_value_char"]} → ${activity["new_value_char"]}";
-                      }
-
-                      if (displayText.isEmpty) {
-                        return const SizedBox(); // Hide if no relevant data
-                      }
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (showDateHeader)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8.0),
-                              child: Text(
-                                formattedDate,
-                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54),
+                              const SizedBox(height: 25),
+                              SizedBox(
+                                width: 293,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        spreadRadius: 2,
+                                        blurRadius: 5,
+                                        offset: const Offset(2, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: TextField(
+                                    controller: nameController,
+                                    enabled: !isReservationStage,
+                                    decoration: const InputDecoration(
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.symmetric(
+                                          vertical: 15, horizontal: 10),
+                                    ),
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          activityItem(activity["user"] ?? "Unknown", displayText, daysAgo),
-                        ],
-                      );
-                    },
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: 293,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    GestureDetector(
+                                      onTap: _showCountryPicker,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 25, vertical: 15),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color:
+                                                  Colors.black.withOpacity(0.3),
+                                              offset: const Offset(4, 4),
+                                              blurRadius: 6,
+                                            ),
+                                          ],
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(selectedPhoneCode),
+                                            const Icon(Icons.arrow_drop_down),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 5),
+
+                                    // Use a TextField with the controller
+                                    Expanded(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color:
+                                                  Colors.black.withOpacity(0.3),
+                                              spreadRadius: 2,
+                                              blurRadius: 5,
+                                              offset: const Offset(2, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: TextField(
+                                          controller: phoneNumberController,
+                                          keyboardType: TextInputType.phone,
+                                          enabled: !isReservationStage,
+                                          decoration: const InputDecoration(
+                                            hintText: "phone number",
+                                            border: InputBorder.none,
+                                            contentPadding:
+                                                EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 15),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: 293,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xffd9d9d9),
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        spreadRadius: 2,
+                                        blurRadius: 5,
+                                        offset: const Offset(2, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  padding: const EdgeInsets.only(
+                                      left: 8, right: 8, bottom: 8),
+                                  child: GridView.builder(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    gridDelegate:
+                                        const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 2,
+                                      crossAxisSpacing: 2.0,
+                                      mainAxisSpacing: 2.0,
+                                      childAspectRatio: 3,
+                                    ),
+                                    itemCount: phoneNumbers.length,
+                                    itemBuilder: (context, index) {
+                                      final number = phoneNumbers[index];
+                                      return Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xffd9d9d9),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 3),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                number,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                            ),
+                                            GestureDetector(
+                                              onTap: isReservationStage
+                                                  ? null
+                                                  : () {
+                                                      if (phoneNumbers.length >
+                                                          1) {
+                                                        setState(() =>
+                                                            phoneNumbers.remove(
+                                                                number));
+                                                      } else {
+                                                        showErrorDialog(
+                                                            "At least one phone number is required.");
+                                                      }
+                                                    },
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black,
+                                                  borderRadius:
+                                                      BorderRadius.circular(5),
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.all(4),
+                                                child: const Icon(
+                                                  Icons.close,
+                                                  size: 14,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              GestureDetector(
+                                onTap: _showMultiSelectDialog,
+                                child: Container(
+                                  width: 293,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        spreadRadius: 2,
+                                        blurRadius: 5,
+                                        offset: const Offset(2, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  padding: const EdgeInsets.all(10),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      if (siteNames.isNotEmpty)
+                                        Expanded(
+                                          child: Wrap(
+                                            spacing: 4.0,
+                                            runSpacing: 2.0,
+                                            children: siteNames
+                                                .map((site) => Chip(
+                                                      label: Text(site),
+                                                      backgroundColor:
+                                                          Colors.grey[300],
+                                                    ))
+                                                .toList(),
+                                          ),
+                                        ),
+                                      const Padding(
+                                        padding: EdgeInsets.only(left: 10.0),
+                                        child: Icon(Icons.arrow_drop_down,
+                                            color: Colors.black),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: 293,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        spreadRadius: 2,
+                                        blurRadius: 5,
+                                        offset: const Offset(2, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: DropdownButtonFormField<String>(
+                                    value: selectedSource,
+                                    items: sources.map((source) {
+                                      return DropdownMenuItem<String>(
+                                        value: source[
+                                            'name'], // Ensure the source name is used
+                                        child: Text(source['name']),
+                                      );
+                                    }).toList(),
+                                    onChanged: isReservationStage
+                                        ? null
+                                        : (value) {
+                                            setState(() {
+                                              selectedSource = value!;
+                                            });
+                                          },
+                                    decoration: const InputDecoration(
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.symmetric(
+                                          vertical: 15, horizontal: 10),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  _actionButton(
+                                    "Save",
+                                    isInactiveStage
+                                        ? Colors.grey
+                                        : const Color(0xff84A441),
+                                    isInactiveStage
+                                        ? null
+                                        : updatePipelineDetail,
+                                  ),
+                                  _actionButton(
+                                    "Cancel",
+                                    const Color(0xff000000).withOpacity(0.37),
+                                    () {
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (context) =>
+                                                const PipelineScreen()),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
-          );
-        },
-      );
-    },
-  );
-}
+    );
+  }
 
-Widget activityItem(String name, String description, String daysAgo) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 10),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        CircleAvatar(
-          backgroundColor: const Color(0xff84A441),
-          child: Text(name[0].toUpperCase(), style: const TextStyle(color: Colors.white)),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
+  void showActivityPopup(BuildContext context, int pipelineId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return FutureBuilder<Map<String, dynamic>>(
+          future: ApiService().getActivityByPipeline(pipelineId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return buildSkeletonLoader();
+            } else if (snapshot.hasError) {
+              return Center(child: Text("Error: ${snapshot.error}"));
+            } else if (!snapshot.hasData || snapshot.data!['data'] == null) {
+              return const Center(child: Text("No activities found."));
+            }
+
+            List<dynamic> activities = snapshot.data!['data'];
+
+            return Container(
+              padding: const EdgeInsets.all(16),
+              height: MediaQuery.of(context).size.height * 0.6,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      )
+                    ],
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: activities.length,
+                      itemBuilder: (context, index) {
+                        var activity = activities[index];
+                        DateTime createDate =
+                            DateTime.parse(activity["create_date"]);
+                        String formattedDate =
+                            DateFormat('dd/MM/yyyy').format(createDate);
+
+                        bool showDateHeader = index == 0 ||
+                            DateFormat('dd/MM/yyyy').format(DateTime.parse(
+                                    activities[index - 1]["create_date"])) !=
+                                formattedDate;
+
+                        Duration difference =
+                            DateTime.now().difference(createDate);
+                        String daysAgo = difference.inDays == 0
+                            ? "Today"
+                            : difference.inDays == 1
+                                ? "Yesterday"
+                                : "${difference.inDays} days ago";
+
+                        // Construct display text based on available data
+                        String displayText = "";
+
+                        if ((activity["note"] != null &&
+                                activity["note"].isNotEmpty) ||
+                            (activity["summary"] != null &&
+                                activity["summary"].isNotEmpty)) {
+                          // Show note or summary
+                          displayText = activity["activity_type"] != null
+                              ? "${activity["activity_type"]["name"]}: ${activity["summary"]?.trim().isNotEmpty == true ? activity["summary"] : activity["note"]}"
+                              : activity["summary"]?.trim().isNotEmpty == true
+                                  ? activity["summary"]
+                                  : activity["note"];
+                        } else if ((activity["field"] != null &&
+                                    activity["field"].isNotEmpty) &&
+                                (activity["old_value_char"] != null &&
+                                    activity["old_value_char"].isNotEmpty) ||
+                            (activity["new_value_char"] != null &&
+                                activity["new_value_char"].isNotEmpty)) {
+                          // Show old and new value change
+                          displayText =
+                              "${activity["field"]}: ${activity["old_value_char"]} → ${activity["new_value_char"]}";
+                        }
+
+                        if (displayText.isEmpty) {
+                          return const SizedBox(); // Hide if no relevant data
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (showDateHeader)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8.0),
+                                child: Text(
+                                  formattedDate,
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black54),
+                                ),
+                              ),
+                            activityItem(activity["user"] ?? "Unknown",
+                                displayText, daysAgo),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget buildSkeletonLoader() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: 5, // Simulate 5 items
+        itemBuilder: (context, index) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "$name - $daysAgo",
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              Container(
+                width: double.infinity,
+                height: 16,
+                color: Colors.grey[300],
               ),
-              const SizedBox(height: 4),
-              Text(description, style: const TextStyle(color: Colors.black87)),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          height: 16,
+                          color: Colors.grey[300],
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: double.infinity,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
             ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget activityItem(String name, String description, String daysAgo) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            backgroundColor: const Color(0xff84A441),
+            child: Text(name[0].toUpperCase(),
+                style: const TextStyle(color: Colors.white)),
           ),
-        ),
-      ],
-    ),
-  );
-}
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "$name - $daysAgo",
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                Text(description,
+                    style: const TextStyle(color: Colors.black87)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   void showAddActivityPopup(BuildContext context, List<int> resIds) async {
     TextEditingController summaryController = TextEditingController();
@@ -1402,7 +1463,7 @@ Widget activityItem(String name, String description, String daysAgo) {
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: isLoading
-                          ? const Center(child: CircularProgressIndicator())
+                          ? buildSkeletonLoader()
                           : DropdownButtonFormField<int>(
                               isExpanded: true,
                               decoration: const InputDecoration(
@@ -1503,13 +1564,14 @@ Widget activityItem(String name, String description, String daysAgo) {
                                 String responseMessage = response["message"];
                                 showSuccessDialog(responseMessage);
                               } catch (e) {
-                                showErrorDialog("Failed to create activity: $e");
+                                showErrorDialog(
+                                    "Failed to create activity: $e");
                               }
                             },
                           ),
                         ),
-                         const SizedBox(width: 10),
-                         Expanded(
+                        const SizedBox(width: 10),
+                        Expanded(
                           child: _actionButton(
                             "Cancel",
                             const Color(0xff000000).withOpacity(0.37),

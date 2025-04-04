@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/services/api_service.dart';
@@ -7,7 +8,6 @@ class UpdatesScreen extends StatefulWidget {
   const UpdatesScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _UpdatesScreenState createState() => _UpdatesScreenState();
 }
 
@@ -29,7 +29,7 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
       return "${difference.inDays} day ago";
     } else if (difference.inHours > 1) {
       return "${difference.inHours} hours ago";
-    } else if (difference.inHours ==  1) {
+    } else if (difference.inHours == 1) {
       return "${difference.inHours} hour ago";
     } else {
       return "Just now";
@@ -98,14 +98,12 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                               try {
                                 await ApiService().logout();
                                 Navigator.pushReplacement(
-                                  // ignore: use_build_context_synchronously
                                   context,
                                   MaterialPageRoute(
                                       builder: (context) =>
                                           const LoginScreen()),
                                 );
                               } catch (e) {
-                                // ignore: use_build_context_synchronously
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text("Logout failed: $e")),
                                 );
@@ -121,14 +119,17 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                     child: FutureBuilder<List<Map<String, dynamic>>>(
                       future: _futureUpdates,
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return buildSkeletonLoader(); // Show shimmer skeleton
                         } else if (snapshot.hasError) {
                           return Center(
                             child: Text("Error: ${snapshot.error}"),
                           );
-                        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                          return const Center(child: Text("No updates available"));
+                        } else if (!snapshot.hasData ||
+                            snapshot.data!.isEmpty) {
+                          return const Center(
+                              child: Text("No updates available"));
                         }
 
                         List<Map<String, dynamic>> messages = snapshot.data!;
@@ -152,18 +153,21 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     CircleAvatar(
-                                      backgroundColor: msg["sender"] == "OdooBot"
-                                          ? Colors.black54
-                                          : Colors.orange,
+                                      backgroundColor:
+                                          msg["sender"] == "OdooBot"
+                                              ? Colors.black54
+                                              : Colors.orange,
                                       child: Text(
                                         msg["sender"][0].toUpperCase(),
-                                        style: const TextStyle(color: Colors.white),
+                                        style: const TextStyle(
+                                            color: Colors.white),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             msg["sender"],
@@ -172,11 +176,14 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
                                             ),
                                           ),
                                           Container(
-                                            margin: const EdgeInsets.only(top: 4),
+                                            margin:
+                                                const EdgeInsets.only(top: 4),
                                             padding: const EdgeInsets.all(10),
                                             decoration: BoxDecoration(
-                                              color: const Color(0xff84A441).withOpacity(0.38),
-                                              borderRadius: BorderRadius.circular(8),
+                                              color: const Color(0xff84A441)
+                                                  .withOpacity(0.38),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
                                             child: Text(msg["message"]),
                                           ),
@@ -198,6 +205,67 @@ class _UpdatesScreenState extends State<UpdatesScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Method to build the shimmer skeleton loader
+  Widget buildSkeletonLoader() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: 5, // Simulate 5 items
+        itemBuilder: (context, index) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                height: 16,
+                color: Colors.grey[300],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          height: 16,
+                          color: Colors.grey[300],
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: double.infinity,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+          );
+        },
       ),
     );
   }

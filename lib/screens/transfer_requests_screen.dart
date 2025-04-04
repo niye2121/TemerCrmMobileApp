@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/screens/login_screen.dart';
 import 'package:temer/services/api_service.dart';
@@ -205,7 +206,7 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                 // Property List
                 Expanded(
                   child: isLoading
-                      ? const Center(child: CircularProgressIndicator())
+                      ? buildSkeletonLoader()
                       : errorMessage.isNotEmpty
                           ? Center(
                               child: Text(errorMessage,
@@ -216,6 +217,66 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget buildSkeletonLoader() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: 5, // Simulate 5 items
+        itemBuilder: (context, index) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                height: 16,
+                color: Colors.grey[300],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          height: 16,
+                          color: Colors.grey[300],
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: double.infinity,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+          );
+        },
       ),
     );
   }
@@ -460,8 +521,7 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                 Expanded(
                   child: Text(
                     "Old: ${request["old_property_name"]}",
-                    style: const TextStyle(
-                        fontSize: 14, color:  Colors.black),
+                    style: const TextStyle(fontSize: 14, color: Colors.black),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -477,7 +537,10 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                 Expanded(
                   child: Text(
                     "New: ${request["new_property_name"]}",
-                    style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -646,10 +709,13 @@ class _TransferRequestsScreenState extends State<TransferRequestsScreen> {
                         borderRadius: BorderRadius.circular(7.33)),
                   ),
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("Close",
-                  style: TextStyle(color: Colors.white,),
+                  child: const Text(
+                    "Close",
+                    style: TextStyle(
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-              ),
               ),
             ],
           ),

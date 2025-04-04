@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:temer/screens/home_screen.dart';
 import 'package:temer/services/api_service.dart';
 
@@ -6,7 +7,6 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _LoginScreenState createState() => _LoginScreenState();
 }
 
@@ -77,7 +77,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (success) {
       Navigator.pushReplacement(
-        // ignore: use_build_context_synchronously
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
@@ -87,12 +86,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[200],
-      resizeToAvoidBottomInset:
-          true, // Ensures the UI adjusts when the keyboard appears
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           Positioned(
@@ -123,8 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 SizedBox(
-                  height: MediaQuery.of(context).size.height *
-                      0.9,
+                  height: MediaQuery.of(context).size.height * 0.9,
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -205,9 +201,18 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               onPressed: _isLoading ? null : _handleLogin,
                               child: _isLoading
-                                  ? const CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.white),
+                                  ? Shimmer.fromColors(
+                                      baseColor: Colors.white,
+                                      highlightColor: Colors.grey[300]!,
+                                      child: Container(
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(7.33),
+                                        ),
+                                      ),
                                     )
                                   : const Text(
                                       "Login",
